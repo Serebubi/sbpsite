@@ -18,6 +18,18 @@ export function OrderSummaryCard({ order, compact = false }: OrderSummaryCardPro
   const primaryStatusLabel = order.crmStageName ?? statusLabels[order.status];
   const showLocalStatus = Boolean(order.crmStageName);
   const customerName = [order.customer.firstName, order.customer.lastName].filter(Boolean).join(" ") || "Клиент";
+  const isTrackingPickupOrder =
+    order.orderType === "pickup_paid" &&
+    (order.marketplace === "cdek" || order.marketplace === "5post" || order.marketplace === "dpd" || order.marketplace === "avito");
+  const isHomeDelivery = order.orderType === "home_delivery";
+  const trackingPickupLabel =
+    order.marketplace === "cdek"
+      ? "Получение CDEK"
+      : order.marketplace === "5post"
+        ? "Получение 5POST"
+        : order.marketplace === "dpd"
+          ? "Получение DPD"
+          : "Получение Avito";
 
   return (
     <article className="rounded-[32px] border border-[color:var(--line)] bg-white/96 p-6 shadow-[0_24px_44px_rgba(68,42,112,0.08)]">
@@ -58,13 +70,36 @@ export function OrderSummaryCard({ order, compact = false }: OrderSummaryCardPro
           <dd className="mt-2 text-sm font-semibold text-[color:var(--foreground)]">{order.deliveryAddress ?? order.pickupAddress}</dd>
         </div>
         <div className="rounded-[24px] bg-[color:var(--surface-subtle)] p-4">
-          <dt className="text-xs uppercase tracking-[0.24em] text-[color:var(--muted)]">Сумма и товары</dt>
+          <dt className="text-xs uppercase tracking-[0.24em] text-[color:var(--muted)]">
+            {isTrackingPickupOrder ? trackingPickupLabel : isHomeDelivery ? "Дата и слот" : "Сумма и товары"}
+          </dt>
           <dd className="mt-2 text-sm font-semibold text-[color:var(--foreground)]">
-            {order.totalAmount ? `${order.totalAmount.toLocaleString("ru-RU")} ₽` : "По ссылке"}
+            {isTrackingPickupOrder
+              ? order.trackingNumber ?? "Уточняется"
+              : isHomeDelivery
+                ? order.deliveryDate ?? "Уточняется"
+                : order.totalAmount
+                  ? `${order.totalAmount.toLocaleString("ru-RU")} ₽`
+                  : "По ссылке"}
           </dd>
-          <dd className="mt-1 text-sm text-[color:var(--muted)]">{order.itemCount ? `${order.itemCount} шт.` : "Уточняется"}</dd>
+          <dd className="mt-1 text-sm text-[color:var(--muted)]">
+            {isTrackingPickupOrder
+              ? `Код: ${order.pickupCode ?? "не указан"}`
+              : isHomeDelivery
+                ? order.deliveryTimeSlot ?? "Интервал не выбран"
+                : order.itemCount
+                  ? `${order.itemCount} шт.`
+                  : "Уточняется"}
+          </dd>
         </div>
       </dl>
+
+      {isHomeDelivery && order.relatedOrderNumbers.length > 0 ? (
+        <div className="mt-5 rounded-[26px] bg-[color:var(--surface-subtle)] p-4">
+          <p className="text-xs uppercase tracking-[0.22em] text-[color:var(--muted)]">Номера заказов</p>
+          <p className="mt-2 text-sm font-semibold text-[color:var(--foreground)]">{order.relatedOrderNumbers.join(", ")}</p>
+        </div>
+      ) : null}
 
       {order.productPreview ? (
         <div className="mt-5 rounded-[26px] border border-[color:var(--line)] bg-white p-5">

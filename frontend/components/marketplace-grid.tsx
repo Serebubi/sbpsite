@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { ReactNode } from "react";
 
 import { humanizeMarketplace, marketplaceById, marketplaces, type MarketplaceId } from "shared";
 
@@ -6,9 +7,10 @@ interface MarketplaceGridProps {
   value: MarketplaceId | "";
   onSelect: (marketplace: MarketplaceId) => void;
   filter?: MarketplaceId[];
+  children?: ReactNode;
 }
 
-export function MarketplaceGrid({ value, onSelect, filter }: MarketplaceGridProps) {
+export function MarketplaceGrid({ value, onSelect, filter, children }: MarketplaceGridProps) {
   const visibleMarketplaces = filter ? marketplaces.filter((m) => filter.includes(m.id)) : marketplaces;
   return (
     <div className={`grid gap-4 ${filter ? "mx-auto max-w-xl grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"}`}>
@@ -52,6 +54,7 @@ export function MarketplaceGrid({ value, onSelect, filter }: MarketplaceGridProp
           </button>
         );
       })}
+      {children}
     </div>
   );
 }

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildManualPreview,
+  createHomeDeliveryOrderSchema,
+  createPaidPickupOrderSchema,
   createPickupStandardOrderSchema,
   isSupportedDomainForMarketplace,
   marketplaceExampleUrls,
@@ -22,6 +24,76 @@ describe("shared schemas", () => {
     });
 
     expect(result.marketplace).toBe("wildberries");
+  });
+
+  it("validates cdek paid pickup input", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "cdek",
+      firstName: "Иван",
+      lastName: "Иванов",
+      phone: "+79997776655",
+      trackingNumber: "CDEK-123456",
+      pickupCode: "7788",
+    });
+
+    expect(result.marketplace).toBe("cdek");
+    expect(result.trackingNumber).toBe("CDEK-123456");
+  });
+
+  it("validates 5post paid pickup input", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "5post",
+      firstName: "Иван Иванович",
+      phone: "+79997776655",
+      trackingNumber: "5POST-123456",
+      pickupCode: "4455",
+    });
+
+    expect(result.marketplace).toBe("5post");
+    expect(result.pickupCode).toBe("4455");
+  });
+
+  it("validates dpd paid pickup input", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "dpd",
+      firstName: "Иван Иванович",
+      phone: "+79997776655",
+      trackingNumber: "DPD-123456",
+      pickupCode: "5566",
+    });
+
+    expect(result.marketplace).toBe("dpd");
+    expect(result.trackingNumber).toBe("DPD-123456");
+  });
+
+  it("validates avito paid pickup input", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "avito",
+      firstName: "Иван Иванович",
+      phone: "+79997776655",
+      trackingNumber: "AVITO-123456",
+      pickupCode: "6677",
+    });
+
+    expect(result.marketplace).toBe("avito");
+    expect(result.pickupCode).toBe("6677");
+  });
+
+  it("validates home delivery input", () => {
+    const result = createHomeDeliveryOrderSchema.parse({
+      orderType: "home_delivery",
+      orderNumbers: ["669281", "669282"],
+      deliveryAddress: "Мариуполь, Ленина 1",
+      deliveryDate: "2026-03-28",
+      deliveryTimeSlot: "12:00-15:00",
+    });
+
+    expect(result.orderNumbers).toHaveLength(2);
+    expect(result.deliveryTimeSlot).toBe("12:00-15:00");
   });
 
   it("rejects unsupported preview link format", () => {

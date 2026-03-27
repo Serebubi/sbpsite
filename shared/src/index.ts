@@ -121,6 +121,12 @@ export const marketplaceExampleUrls: Record<MarketplaceId, string> = {
   detmir: "https://www.detmir.ru/product/index/id/1234567/",
 };
 
+export const homeDeliveryMarketplaceId = "home_delivery" as const;
+export type OrderMarketplaceId = MarketplaceId | typeof homeDeliveryMarketplaceId;
+
+export const homeDeliveryTimeSlotValues = ["9:00-12:00", "12:00-15:00", "15:00-18:00"] as const;
+export type HomeDeliveryTimeSlot = (typeof homeDeliveryTimeSlotValues)[number];
+
 export const orderTypeValues = ["pickup_standard", "pickup_paid", "home_delivery"] as const;
 export type OrderType = (typeof orderTypeValues)[number];
 
@@ -161,9 +167,11 @@ export const numericIdSchema = z
   .regex(/^\d+$/, "Введите корректный номер заказа");
 
 export const marketplaceSchema = z.enum(marketplaces.map((marketplace) => marketplace.id) as [MarketplaceId, ...MarketplaceId[]]);
+export const orderMarketplaceSchema = z.union([marketplaceSchema, z.literal(homeDeliveryMarketplaceId)]);
 export const orderTypeSchema = z.enum(orderTypeValues);
 export const orderStatusSchema = z.enum(orderStatusValues);
 export const crmSyncStateSchema = z.enum(crmSyncStateValues);
+export const homeDeliveryTimeSlotSchema = z.enum(homeDeliveryTimeSlotValues);
 
 export const baseCustomerSchema = z.object({
   firstName: z.string().trim().min(1, "Укажите имя"),
@@ -181,6 +189,62 @@ export const productPreviewSchema = z.object({
 });
 
 export type ProductPreview = z.infer<typeof productPreviewSchema>;
+
+export const createPaidPickupOrderSchema = z
+  .object({
+    orderType: z.literal("pickup_paid"),
+    marketplace: marketplaceSchema,
+    firstName: z.string().trim().optional(),
+    lastName: z.string().trim().optional(),
+    phone: phoneSchema,
+    itemCount: z.number().int().positive("Укажите количество товаров").optional(),
+    totalAmount: z.number().positive("Укажите сумму заказа").optional(),
+    trackingNumber: z.string().trim().optional(),
+    pickupCode: z.string().trim().optional(),
+  })
+  .superRefine((payload, ctx) => {
+    if (payload.marketplace === "cdek") {
+      if (!payload.firstName) {
+        ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите имя" });
+      }
+      if (!payload.lastName) {
+        ctx.addIssue({ code: "custom", path: ["lastName"], message: "Укажите фамилию" });
+      }
+      if (!payload.trackingNumber) {
+        ctx.addIssue({ code: "custom", path: ["trackingNumber"], message: "Укажите трек-номер" });
+      }
+      if (!payload.pickupCode) {
+        ctx.addIssue({ code: "custom", path: ["pickupCode"], message: "Укажите код получения" });
+      }
+      return;
+    }
+
+    if (payload.marketplace === "5post" || payload.marketplace === "dpd" || payload.marketplace === "avito") {
+      if (!payload.firstName) {
+        ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите ФИО" });
+      }
+      if (!payload.trackingNumber) {
+        ctx.addIssue({ code: "custom", path: ["trackingNumber"], message: "Укажите трек-номер" });
+      }
+      if (!payload.pickupCode) {
+        ctx.addIssue({ code: "custom", path: ["pickupCode"], message: "Укажите код получения" });
+      }
+      return;
+    }
+
+    if (!payload.firstName) {
+      ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите имя" });
+    }
+    if (!payload.lastName) {
+      ctx.addIssue({ code: "custom", path: ["lastName"], message: "Укажите фамилию" });
+    }
+    if (payload.itemCount == null) {
+      ctx.addIssue({ code: "custom", path: ["itemCount"], message: "Укажите количество товаров" });
+    }
+    if (payload.totalAmount == null) {
+      ctx.addIssue({ code: "custom", path: ["totalAmount"], message: "Укажите сумму заказа" });
+    }
+  });
 
 export const createPickupOrderSchema = z.object({
   orderType: z.literal("pickup_paid"),
@@ -205,17 +269,15 @@ export const createPickupStandardOrderSchema = z.object({
 
 export const createHomeDeliveryOrderSchema = z.object({
   orderType: z.literal("home_delivery"),
-  marketplace: marketplaceSchema,
-  firstName: z.string().trim().min(1, "Укажите имя"),
-  phone: phoneSchema,
+  orderNumbers: z.array(numericIdSchema).min(1, "Введите номера заказов для доставки на дом"),
   deliveryAddress: z.string().trim().min(1, "Укажите адрес доставки"),
-  sourceUrl: z.string().url("Введите корректную ссылку"),
-  productPreview: productPreviewSchema.nullable(),
+  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Укажите желаемую дату доставки"),
+  deliveryTimeSlot: homeDeliveryTimeSlotSchema,
 });
 
 export const createOrderSchema = z.discriminatedUnion("orderType", [
   createPickupStandardOrderSchema,
-  createPickupOrderSchema,
+  createPaidPickupOrderSchema,
   createHomeDeliveryOrderSchema,
 ]);
 
@@ -251,14 +313,19 @@ export const orderSchema = z.object({
   id: z.string().uuid(),
   orderNumber: numericIdSchema,
   orderType: orderTypeSchema,
-  marketplace: marketplaceSchema,
+  marketplace: orderMarketplaceSchema,
   status: orderStatusSchema,
   pickupAddress: z.string(),
   customer: customerSchema,
+  relatedOrderNumbers: z.array(numericIdSchema).default([]),
   itemCount: z.number().int().positive().nullable(),
   totalAmount: z.number().positive().nullable(),
+  trackingNumber: z.string().trim().min(1).nullable().default(null),
+  pickupCode: z.string().trim().min(1).nullable().default(null),
   sourceUrl: z.string().url().nullable(),
   deliveryAddress: z.string().nullable(),
+  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+  deliveryTimeSlot: homeDeliveryTimeSlotSchema.nullable().default(null),
   productPreview: productPreviewSchema.nullable(),
   attachment: orderAttachmentSchema.nullable(),
   crmSyncState: crmSyncStateSchema.default("pending"),
@@ -306,6 +373,11 @@ export const bitrixPayloadSchema = z.object({
   logistics: z.object({
     sourceUrl: z.string().nullable(),
     deliveryAddress: z.string().nullable(),
+    relatedOrderNumbers: z.array(z.string()).default([]),
+    deliveryDate: z.string().nullable().default(null),
+    deliveryTimeSlot: z.string().nullable().default(null),
+    trackingNumber: z.string().nullable().default(null),
+    pickupCode: z.string().nullable().default(null),
   }),
   pricing: z.object({
     itemCount: z.number().nullable(),
@@ -366,7 +438,10 @@ export function isAllowedDomainForMarketplace(url: string, marketplace: Marketpl
   return allowed.length === 0 ? true : allowed.includes(hostname);
 }
 
-export function humanizeMarketplace(marketplace: MarketplaceId) {
+export function humanizeMarketplace(marketplace: OrderMarketplaceId) {
+  if (marketplace === homeDeliveryMarketplaceId) {
+    return "Доставка на дом";
+  }
   return marketplaceById[marketplace].label;
 }
 

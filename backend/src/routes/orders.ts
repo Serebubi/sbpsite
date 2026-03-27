@@ -5,6 +5,7 @@ import {
   cancelOrderSchema,
   createOrderResponseSchema,
   createOrderSchema,
+  homeDeliveryMarketplaceId,
   isAllowedDomainForMarketplace,
   previewLinkResponseSchema,
   previewLinkSchema,
@@ -44,12 +45,11 @@ export function createOrderRouter(orderService: OrderService) {
         body.orderType === "home_delivery"
           ? {
               orderType: body.orderType,
-              marketplace: body.marketplace,
-              firstName: body.firstName,
-              phone: body.phone,
+              marketplace: homeDeliveryMarketplaceId,
+              orderNumbers: body.orderNumbers ? JSON.parse(body.orderNumbers) : [],
               deliveryAddress: body.deliveryAddress,
-              sourceUrl: body.sourceUrl,
-              productPreview: body.productPreview ? JSON.parse(body.productPreview) : null,
+              deliveryDate: body.deliveryDate,
+              deliveryTimeSlot: body.deliveryTimeSlot,
             }
           : body.orderType === "pickup_standard"
             ? {
@@ -62,18 +62,35 @@ export function createOrderRouter(orderService: OrderService) {
                 totalAmount: parseNumberField(body.totalAmount, "Общая сумма"),
                 sourceUrl: body.sourceUrl,
               }
-          : {
-              orderType: body.orderType,
-              marketplace: body.marketplace,
-              firstName: body.firstName,
-              lastName: body.lastName,
-              phone: body.phone,
-              itemCount: parseNumberField(body.itemCount, "Количество товаров"),
-              totalAmount: parseNumberField(body.totalAmount, "Общая сумма"),
-            };
+            : body.marketplace === "cdek" || body.marketplace === "5post" || body.marketplace === "dpd" || body.marketplace === "avito"
+              ? {
+                  orderType: body.orderType,
+                  marketplace: body.marketplace,
+                  firstName: body.firstName,
+                  lastName: body.lastName,
+                  phone: body.phone,
+                  trackingNumber: body.trackingNumber,
+                  pickupCode: body.pickupCode,
+                }
+              : {
+                  orderType: body.orderType,
+                  marketplace: body.marketplace,
+                  firstName: body.firstName,
+                  lastName: body.lastName,
+                  phone: body.phone,
+                  itemCount: parseNumberField(body.itemCount, "Количество товаров"),
+                  totalAmount: parseNumberField(body.totalAmount, "Общая сумма"),
+                };
       const payload = createOrderSchema.parse(rawPayload);
 
-      if (payload.orderType === "pickup_paid" && !request.file) {
+      if (
+        payload.orderType === "pickup_paid" &&
+        payload.marketplace !== "cdek" &&
+        payload.marketplace !== "5post" &&
+        payload.marketplace !== "dpd" &&
+        payload.marketplace !== "avito" &&
+        !request.file
+      ) {
         throw new HttpError(400, "Прикрепите QR или штрих-код.");
       }
 

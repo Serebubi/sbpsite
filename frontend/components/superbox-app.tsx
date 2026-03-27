@@ -15,22 +15,21 @@ import {
 } from "react";
 
 import {
-  buildManualPreview,
   createHomeDeliveryOrderSchema,
-  createPickupOrderSchema,
+  homeDeliveryTimeSlotValues,
+  createPaidPickupOrderSchema,
   createPickupStandardOrderSchema,
   humanizeMarketplace,
   marketplaceExampleUrls,
   numericIdSchema,
   pickupAddress,
-  previewLinkSchema,
   supportTelegramUrl,
+  type HomeDeliveryTimeSlot,
   type MarketplaceId,
   type OrderRecord,
-  type ProductPreview,
 } from "shared";
 
-import { cancelOrder, createHomeDeliveryOrder, createPickupOrder, fetchOrder, previewLink } from "@/lib/api";
+import { cancelOrder, createHomeDeliveryOrder, createPickupOrder, fetchOrder } from "@/lib/api";
 
 import { FlowShell } from "./flow-shell";
 import { MarketplaceGrid } from "./marketplace-grid";
@@ -51,11 +50,14 @@ type SpecialPickupId = "courier" | "bulky";
 type PickupState = {
   step: 1 | 2 | 3;
   marketplace: MarketplaceId | SpecialPickupId | "";
+  fullName: string;
   firstName: string;
   lastName: string;
   phone: string;
   itemCount: string;
   totalAmount: string;
+  trackingNumber: string;
+  pickupCode: string;
   sourceUrl: string;
   attachment: File | null;
   result: OrderRecord | null;
@@ -63,18 +65,104 @@ type PickupState = {
 };
 
 type DeliveryState = {
-  step: 1 | 2 | 3 | 4 | 5;
-  marketplace: MarketplaceId | "";
-  url: string;
-  preview: ProductPreview | null;
-  previewMode: "parsed" | "fallback" | null;
-  parserMessage: string | null;
-  firstName: string;
-  phone: string;
+  step: 1 | 2;
+  orderNumbers: string[];
   deliveryAddress: string;
+  deliveryDate: string;
+  deliveryTimeSlot: HomeDeliveryTimeSlot | "";
   result: OrderRecord | null;
   errors: Record<string, string>;
 };
+
+type PaidFieldCopy = {
+  itemCountLabel: string;
+  totalAmountLabel: string;
+  attachmentLabel: string;
+  attachmentHint: string;
+  attachmentRequiredError: string;
+};
+
+const defaultPaidFieldCopy: PaidFieldCopy = {
+  itemCountLabel: "Количество",
+  totalAmountLabel: "Итоговая цена",
+  attachmentLabel: "QR / штрих-код заказа",
+  attachmentHint: "PNG, JPG или PDF до 10 MB.",
+  attachmentRequiredError: "Прикрепите QR или штрих-код.",
+};
+
+const paidFieldCopyByMarketplace: Partial<Record<MarketplaceId | SpecialPickupId, PaidFieldCopy>> = {
+  cdek: {
+    itemCountLabel: "Введите общее количество товаров для получения:",
+    totalAmountLabel: "Укажите, пожалуйста, общую сумму всех товаров в заказе:",
+    attachmentLabel: "Штрих-код или QR код для получения (Сделайте скриншот и приложите его)",
+    attachmentHint: "PNG, JPG или PDF до 10 MB.",
+    attachmentRequiredError: "Приложите штрих-код или QR код для получения.",
+  },
+  "5post": {
+    itemCountLabel: "Укажите трек-номер",
+    totalAmountLabel: "Код получения",
+    attachmentLabel: "Скриншот отправления (можно пропустить)",
+    attachmentHint: "PNG, JPG или PDF до 10 MB.",
+    attachmentRequiredError: "",
+  },
+  dpd: {
+    itemCountLabel: "Укажите трек-номер",
+    totalAmountLabel: "Код получения",
+    attachmentLabel: "Скриншот отправления (можно пропустить)",
+    attachmentHint: "PNG, JPG или PDF до 10 MB.",
+    attachmentRequiredError: "",
+  },
+  avito: {
+    itemCountLabel: "Укажите трек-номер",
+    totalAmountLabel: "Код получения",
+    attachmentLabel: "Скриншот отправления (можно пропустить)",
+    attachmentHint: "PNG, JPG или PDF до 10 MB.",
+    attachmentRequiredError: "",
+  },
+  goldapple: {
+    itemCountLabel: "Количество",
+    totalAmountLabel: "Итоговая цена",
+    attachmentLabel: "Скриншот заказа",
+    attachmentHint: "PNG, JPG или PDF до 10 MB.",
+    attachmentRequiredError: "Прикрепите скриншот заказа.",
+  },
+  letual: {
+    itemCountLabel: "Количество",
+    totalAmountLabel: "Итоговая цена",
+    attachmentLabel: "Скриншот заказа",
+    attachmentHint: "PNG, JPG или PDF до 10 MB.",
+    attachmentRequiredError: "Прикрепите скриншот заказа.",
+  },
+  detmir: {
+    itemCountLabel: "Количество",
+    totalAmountLabel: "Итоговая цена",
+    attachmentLabel: "Скриншот заказа",
+    attachmentHint: "PNG, JPG или PDF до 10 MB.",
+    attachmentRequiredError: "Прикрепите скриншот заказа.",
+  },
+};
+
+function getPaidFieldCopy(marketplace: PickupState["marketplace"]) {
+  if (!marketplace) {
+    return defaultPaidFieldCopy;
+  }
+
+  return paidFieldCopyByMarketplace[marketplace as MarketplaceId | SpecialPickupId] ?? defaultPaidFieldCopy;
+}
+
+function splitFullName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return { firstName: "", lastName: "" };
+  }
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: "" };
+  }
+  return {
+    firstName: parts.slice(1).join(" "),
+    lastName: parts[0],
+  };
+}
 
 function NoticeBox({ children, collapsible = false }: { children: ReactNode; collapsible?: boolean }) {
   const [expanded, setExpanded] = useState(false);
@@ -108,6 +196,7 @@ const actionCards: Array<{
   description: string;
   icon: string;
   featured?: boolean;
+  accent?: "soft";
 }> = [
   {
     id: "pickup_paid",
@@ -118,30 +207,31 @@ const actionCards: Array<{
     featured: true,
   },
   {
-    id: "order_lookup",
-    eyebrow: "Track",
-    title: "Найти заказ",
-    description: "Проверьте статус по номеру заказа или телефону за пару секунд.",
-    icon: "⌕",
-  },
-  {
     id: "pickup_standard",
     eyebrow: "Пункт выдачи",
     title: "Сделать заказ",
     description: "Оформите новую доставку со ссылкой на товар и прозрачной структурой для CRM.",
     icon: "+",
+    accent: "soft",
+  },
+  {
+    id: "order_lookup",
+    eyebrow: "Track",
+    title: "Отследить посылку",
+    description: "Проверьте статус по номеру заказа или телефону за пару секунд.",
+    icon: "⌕",
   },
   {
     id: "home_delivery",
     eyebrow: "300 ₽",
     title: "Доставка на дом",
-    description: "Вставьте ссылку на товар, сохраните превью и отправьте курьером до двери.",
+    description: "Оформите доставку уже созданных заказов на домашний адрес.",
     icon: "⌂",
   },
   {
     id: "cancel_order",
     eyebrow: "Контроль",
-    title: "Отменить",
+    title: "Отменить заказ",
     description: "Найдите заказ, проверьте статус и отмените без лишних переписок.",
     icon: "×",
   },
@@ -151,11 +241,14 @@ function createPickupState(): PickupState {
   return {
     step: 1,
     marketplace: "",
+    fullName: "",
     firstName: "",
     lastName: "",
     phone: "",
     itemCount: "",
     totalAmount: "",
+    trackingNumber: "",
+    pickupCode: "",
     sourceUrl: "",
     attachment: null,
     result: null,
@@ -166,17 +259,17 @@ function createPickupState(): PickupState {
 function createDeliveryState(): DeliveryState {
   return {
     step: 1,
-    marketplace: "",
-    url: "",
-    preview: null,
-    previewMode: null,
-    parserMessage: null,
-    firstName: "",
-    phone: "",
+    orderNumbers: [""],
     deliveryAddress: "",
+    deliveryDate: "",
+    deliveryTimeSlot: "",
     result: null,
     errors: {},
   };
+}
+
+function normalizeOrderNumbersInput(values: string[]) {
+  return values.map((value) => value.trim()).filter(Boolean);
 }
 
 function BrandMark() {
@@ -363,6 +456,7 @@ function ActionCard({
   description,
   icon,
   featured = false,
+  accent,
   active = false,
   className,
   onClick,
@@ -372,20 +466,26 @@ function ActionCard({
   description: string;
   icon: string;
   featured?: boolean;
+  accent?: "soft";
   active?: boolean;
   className?: string;
   onClick: () => void;
 }) {
+  const softAccent = accent === "soft";
   return (
     <button
       type="button"
       onClick={onClick}
       className={`group relative overflow-hidden rounded-[30px] text-left ${
         featured
-          ? "min-h-[210px] bg-[linear-gradient(135deg,#b61f8f_0%,#9227dd_100%)] p-8 text-white shadow-[0_24px_54px_rgba(146,39,221,0.24)] lg:row-span-2"
+          ? "min-h-[210px] bg-[linear-gradient(135deg,#b61f8f_0%,#9227dd_100%)] p-8 text-white shadow-[0_24px_54px_rgba(146,39,221,0.24)] hover:-translate-y-1 hover:shadow-[0_28px_60px_rgba(146,39,221,0.28)] lg:row-span-2"
           : active
-            ? "soft-card border border-[color:var(--line-strong)] p-7 shadow-[0_18px_36px_rgba(157,76,255,0.14)]"
-            : "soft-card p-7 hover:-translate-y-1"
+            ? softAccent
+              ? "border border-[rgba(196,46,160,0.2)] bg-[linear-gradient(135deg,#d458bf_0%,#b34be9_100%)] p-7 text-white shadow-[0_22px_42px_rgba(146,39,221,0.18)]"
+              : "soft-card border border-[color:var(--line-strong)] p-7 shadow-[0_18px_36px_rgba(157,76,255,0.14)]"
+            : softAccent
+              ? "border border-[rgba(196,46,160,0.16)] bg-[linear-gradient(135deg,#df71c7_0%,#be67ef_100%)] p-7 text-white shadow-[0_18px_38px_rgba(146,39,221,0.14)] hover:-translate-y-1 hover:shadow-[0_22px_44px_rgba(146,39,221,0.18)]"
+              : "soft-card p-7 hover:-translate-y-1"
       } ${className ?? ""}`}
     >
       <div
@@ -393,16 +493,20 @@ function ActionCard({
           featured
             ? "bg-white/16 text-white"
             : active
-              ? "bg-[linear-gradient(135deg,rgba(196,46,160,0.16),rgba(124,51,255,0.18))] text-[color:var(--accent-strong)]"
-              : "bg-[color:var(--surface-soft)] text-[color:var(--accent)]"
+              ? softAccent
+                ? "bg-white/18 text-white"
+                : "bg-[linear-gradient(135deg,rgba(196,46,160,0.16),rgba(124,51,255,0.18))] text-[color:var(--accent-strong)]"
+              : softAccent
+                ? "bg-white/16 text-white"
+                : "bg-[color:var(--surface-soft)] text-[color:var(--accent)]"
         }`}
       >
         {icon}
       </div>
       <div className={`${featured ? "mt-16" : "mt-8"} space-y-2`}>
-        <p className={`text-xs font-semibold uppercase tracking-[0.22em] ${featured ? "text-white/70" : "text-[color:var(--muted)]"}`}>{eyebrow}</p>
+        <p className={`text-xs font-semibold uppercase tracking-[0.22em] ${featured ? "text-white/70" : softAccent ? "text-white/72" : "text-[color:var(--muted)]"}`}>{eyebrow}</p>
         <h2 className={`${featured ? "text-4xl" : "text-2xl"} font-[family-name:var(--font-display)] leading-none`}>{title}</h2>
-        <p className={`${featured ? "text-white/78" : "text-[color:var(--muted)]"} text-sm leading-7`}>{description}</p>
+        <p className={`${featured ? "text-white/78" : softAccent ? "text-white/82" : "text-[color:var(--muted)]"} text-sm leading-7`}>{description}</p>
       </div>
     </button>
   );
@@ -492,9 +596,6 @@ export function SuperboxApp() {
     activePickup.marketplace && activePickup.marketplace in marketplaceExampleUrls
       ? marketplaceExampleUrls[activePickup.marketplace as MarketplaceId]
       : "https://example.com/product/...";
-  const deliveryUrlPlaceholder = delivery.marketplace
-    ? marketplaceExampleUrls[delivery.marketplace]
-    : "https://example.com/product/...";
 
   const updatePickup = (patch: Partial<PickupState>) => setActivePickup((current) => ({ ...current, ...patch }));
 
@@ -674,6 +775,7 @@ export function SuperboxApp() {
           </button>
         </p>
         <p className="mt-1">📍 Адрес: г. Ростов-на-Дону, ул. Платона Кляты, 23.</p>
+        <p className="mt-1">Если хотите отказаться от товаров, напишите в &quot;Прием заказов&quot;, пришлите скриншоты товаров, от которых отказ и номер заказа.</p>
       </NoticeBox>
     ),
   };
@@ -686,15 +788,14 @@ export function SuperboxApp() {
     startTransition(() => updatePickup({ step: 2, errors: {} }));
   };
 
-  const continueDeliverySelection = () => {
-    if (!delivery.marketplace) {
-      setDelivery((current) => ({ ...current, errors: { marketplace: "Выберите маркетплейс" } }));
-      return;
-    }
-    startTransition(() => setDelivery((current) => ({ ...current, step: 3, errors: {} })));
-  };
-
   const submitPickup = async () => {
+    const paidFieldCopy = getPaidFieldCopy(activePickup.marketplace);
+    const isCdekPaid = activeFlow === "pickup_paid" && activePickup.marketplace === "cdek";
+    const isFullNameTrackingPaid =
+      activeFlow === "pickup_paid" &&
+      (activePickup.marketplace === "5post" || activePickup.marketplace === "dpd" || activePickup.marketplace === "avito");
+    const usesTrackingPickupFields = isCdekPaid || isFullNameTrackingPaid;
+    const fullNameTrackingCustomer = splitFullName(activePickup.fullName);
     const parsed =
       activeFlow === "pickup_standard"
         ? createPickupStandardOrderSchema.safeParse({
@@ -707,21 +808,27 @@ export function SuperboxApp() {
             totalAmount: Number(activePickup.totalAmount),
             sourceUrl: activePickup.sourceUrl,
           })
-        : createPickupOrderSchema.safeParse({
+        : createPaidPickupOrderSchema.safeParse({
             orderType: activeFlow,
             marketplace: activePickup.marketplace,
-            firstName: activePickup.firstName,
-            lastName: activePickup.lastName,
+            firstName: isFullNameTrackingPaid ? fullNameTrackingCustomer.firstName : activePickup.firstName,
+            lastName: isFullNameTrackingPaid ? fullNameTrackingCustomer.lastName : activePickup.lastName,
             phone: activePickup.phone,
-            itemCount: Number(activePickup.itemCount),
-            totalAmount: Number(activePickup.totalAmount),
+            itemCount: usesTrackingPickupFields ? undefined : Number(activePickup.itemCount),
+            totalAmount: usesTrackingPickupFields ? undefined : Number(activePickup.totalAmount),
+            trackingNumber: usesTrackingPickupFields ? activePickup.trackingNumber : undefined,
+            pickupCode: usesTrackingPickupFields ? activePickup.pickupCode : undefined,
           });
 
     const nextErrors: Record<string, string> = {};
     if (!parsed.success) {
       for (const issue of parsed.error.issues) nextErrors[String(issue.path[0] ?? "form")] = issue.message;
     }
-    if (activeFlow === "pickup_paid" && !activePickup.attachment) nextErrors.attachment = "Прикрепите QR или штрих-код.";
+    if (isFullNameTrackingPaid && nextErrors.firstName) {
+      nextErrors.fullName = "Укажите ФИО";
+      delete nextErrors.firstName;
+    }
+    if (activeFlow === "pickup_paid" && !usesTrackingPickupFields && !activePickup.attachment) nextErrors.attachment = paidFieldCopy.attachmentRequiredError;
     if (Object.keys(nextErrors).length > 0) {
       updatePickup({ errors: nextErrors });
       return;
@@ -732,13 +839,15 @@ export function SuperboxApp() {
         const response = await createPickupOrder({
           orderType: activeFlow as "pickup_standard" | "pickup_paid",
           marketplace: activePickup.marketplace,
-          firstName: activePickup.firstName,
-          lastName: activePickup.lastName,
+          firstName: isFullNameTrackingPaid ? fullNameTrackingCustomer.firstName : activePickup.firstName,
+          lastName: isFullNameTrackingPaid ? fullNameTrackingCustomer.lastName : activePickup.lastName,
           phone: activePickup.phone,
-          itemCount: activePickup.itemCount,
-          totalAmount: activePickup.totalAmount,
+          itemCount: usesTrackingPickupFields ? undefined : activePickup.itemCount,
+          totalAmount: usesTrackingPickupFields ? undefined : activePickup.totalAmount,
+          trackingNumber: usesTrackingPickupFields ? activePickup.trackingNumber : undefined,
+          pickupCode: usesTrackingPickupFields ? activePickup.pickupCode : undefined,
           sourceUrl: activeFlow === "pickup_standard" ? activePickup.sourceUrl : undefined,
-          attachment: activeFlow === "pickup_paid" ? activePickup.attachment ?? undefined : undefined,
+          attachment: activeFlow === "pickup_paid" && !isCdekPaid ? activePickup.attachment ?? undefined : undefined,
         });
         setActivePickup((current) => ({ ...current, step: 3, result: response.order, errors: {} }));
       } catch (error) {
@@ -747,53 +856,14 @@ export function SuperboxApp() {
     });
   };
 
-  const submitDeliveryPreview = async () => {
-    const parsed = previewLinkSchema.safeParse({ marketplace: delivery.marketplace, url: delivery.url });
-    const nextErrors: Record<string, string> = {};
-    if (!delivery.marketplace) nextErrors.marketplace = "Выберите маркетплейс";
-    if (!parsed.success) {
-      for (const issue of parsed.error.issues) nextErrors[String(issue.path[0] ?? "form")] = issue.message;
-    }
-    if (Object.keys(nextErrors).length > 0) {
-      setDelivery((current) => ({ ...current, errors: nextErrors }));
-      return;
-    }
-    const payload = parsed.data!;
-
-    startUiTransition(async () => {
-      try {
-        const response = await previewLink(payload);
-        setDelivery((current) => ({
-          ...current,
-          step: 4,
-          preview: response.preview,
-          previewMode: response.mode,
-          parserMessage: response.message,
-          errors: {},
-        }));
-      } catch (error) {
-        const fallback = buildManualPreview(delivery.url, payload.marketplace);
-        setDelivery((current) => ({
-          ...current,
-          step: 4,
-          preview: fallback,
-          previewMode: "fallback",
-          parserMessage: error instanceof Error ? error.message : fallback.parserMessage,
-          errors: {},
-        }));
-      }
-    });
-  };
-
   const submitDeliveryOrder = async () => {
+    const orderNumbers = normalizeOrderNumbersInput(delivery.orderNumbers);
     const parsed = createHomeDeliveryOrderSchema.safeParse({
       orderType: "home_delivery",
-      marketplace: delivery.marketplace,
-      firstName: delivery.firstName,
-      phone: delivery.phone,
+      orderNumbers,
       deliveryAddress: delivery.deliveryAddress,
-      sourceUrl: delivery.url,
-      productPreview: delivery.preview,
+      deliveryDate: delivery.deliveryDate,
+      deliveryTimeSlot: delivery.deliveryTimeSlot,
     });
 
     if (!parsed.success) {
@@ -806,14 +876,12 @@ export function SuperboxApp() {
     startUiTransition(async () => {
       try {
         const response = await createHomeDeliveryOrder({
-          marketplace: delivery.marketplace,
-          firstName: delivery.firstName,
-          phone: delivery.phone,
+          orderNumbers,
           deliveryAddress: delivery.deliveryAddress,
-          sourceUrl: delivery.url,
-          productPreview: delivery.preview,
+          deliveryDate: delivery.deliveryDate,
+          deliveryTimeSlot: delivery.deliveryTimeSlot as HomeDeliveryTimeSlot,
         });
-        setDelivery((current) => ({ ...current, step: 5, result: response.order, errors: {} }));
+        setDelivery((current) => ({ ...current, step: 2, result: response.order, errors: {} }));
       } catch (error) {
         setDelivery((current) => ({
           ...current,
@@ -879,16 +947,8 @@ export function SuperboxApp() {
   };
 
   const pickupStepLabel = activePickup.step === 1 ? "Шаг 1 из 3" : activePickup.step === 2 ? "Шаг 2 из 3" : "Готово";
-  const deliveryStepLabel =
-    delivery.step === 1
-      ? "Шаг 1 из 5"
-      : delivery.step === 2
-        ? "Шаг 2 из 5"
-        : delivery.step === 3
-          ? "Шаг 3 из 5"
-          : delivery.step === 4
-            ? "Шаг 4 из 5"
-            : "Готово";
+  const deliveryStepLabel = delivery.result ? "Готово" : "Шаг 1 из 2";
+  const hasDeliveryOrders = delivery.orderNumbers.some((value) => value.trim().length > 0);
 
   const lookupChips = ["#SBX-2049-99", "+7 900 123 45 67", deferredLookupNumber ? `№ ${deferredLookupNumber}` : null].filter(Boolean);
   const cancelChips = ["Только активные заказы", deferredCancelNumber ? `Проверяем № ${deferredCancelNumber}` : null].filter(Boolean);
@@ -993,7 +1053,12 @@ export function SuperboxApp() {
 
   const renderPickupFlow = () => {
     const paid = activeFlow === "pickup_paid";
+    const isCdekPaid = paid && activePickup.marketplace === "cdek";
+    const isFullNameTrackingPaid =
+      paid && (activePickup.marketplace === "5post" || activePickup.marketplace === "dpd" || activePickup.marketplace === "avito");
+    const usesTrackingPickupFields = isCdekPaid || isFullNameTrackingPaid;
     const isSpecial = paid && (activePickup.marketplace === "courier" || activePickup.marketplace === "bulky");
+    const paidFieldCopy = getPaidFieldCopy(activePickup.marketplace);
     const currentMarketplace = activePickup.marketplace
       ? (activePickup.marketplace in specialPickupLabels
           ? specialPickupLabels[activePickup.marketplace as SpecialPickupId]
@@ -1023,44 +1088,41 @@ export function SuperboxApp() {
               value={isSpecial ? "" : (activePickup.marketplace as MarketplaceId | "")}
               onSelect={(marketplace) => updatePickup({ marketplace, errors: {} })}
               filter={paid ? undefined : ["wildberries", "ozon"]}
-            />
+            >
+              {paid ? (
+                <div className="h-full sm:col-span-2 lg:col-span-3 xl:col-start-2 xl:col-span-3">
+                  <div className="grid h-full gap-4 sm:grid-cols-2">
+                    {specialPickupOptions.map((opt) => {
+                      const active = activePickup.marketplace === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => updatePickup({ marketplace: opt.id, errors: {} })}
+                          className={`marketplace-tile group relative flex h-full min-h-[152px] flex-col items-center justify-center gap-2 overflow-hidden rounded-[28px] border px-5 py-5 text-center transition ${
+                            active
+                              ? "border-[color:rgba(196,46,160,0.32)] bg-white shadow-[0_20px_44px_rgba(123,77,255,0.18)]"
+                              : "border-[rgba(123,77,255,0.2)] bg-[linear-gradient(135deg,rgba(123,77,255,0.05),rgba(196,46,160,0.04))] hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(59,26,110,0.08)]"
+                          }`}
+                        >
+                          {active && (
+                            <span className="absolute right-4 top-4 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[linear-gradient(135deg,#c42ea0,#7c33ff)] text-xs font-bold text-white shadow-[0_10px_18px_rgba(123,77,255,0.22)]">
+                              &#10003;
+                            </span>
+                          )}
+                          <span className="text-3xl">{opt.icon}</span>
+                          <span className="flex flex-col items-center gap-0.5">
+                            <span className="text-base font-semibold text-[color:var(--foreground)]">{opt.label}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--muted)]">{opt.sub}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </MarketplaceGrid>
           </div>
-
-          {paid && (
-            <div className="mt-6">
-              <p className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">
-                Другие варианты
-              </p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {specialPickupOptions.map((opt) => {
-                  const active = activePickup.marketplace === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => updatePickup({ marketplace: opt.id, errors: {} })}
-                      className={`group relative flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-[28px] border px-5 py-5 text-center transition ${
-                        active
-                          ? "border-[color:rgba(196,46,160,0.32)] bg-white shadow-[0_20px_44px_rgba(123,77,255,0.18)]"
-                          : "border-[rgba(123,77,255,0.2)] bg-[linear-gradient(135deg,rgba(123,77,255,0.05),rgba(196,46,160,0.04))] hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(59,26,110,0.08)]"
-                      }`}
-                    >
-                      {active && (
-                        <span className="absolute right-4 top-4 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[linear-gradient(135deg,#c42ea0,#7c33ff)] text-xs font-bold text-white shadow-[0_10px_18px_rgba(123,77,255,0.22)]">
-                          ✓
-                        </span>
-                      )}
-                      <span className="text-3xl">{opt.icon}</span>
-                      <span className="flex flex-col items-center gap-0.5">
-                        <span className="text-sm font-semibold text-[color:var(--foreground)]">{opt.label}</span>
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--muted)]">{opt.sub}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
           {activePickup.errors.marketplace ? (
             <p className="mt-4 text-center text-sm font-semibold text-[color:var(--danger)]">{activePickup.errors.marketplace}</p>
           ) : null}
@@ -1079,10 +1141,14 @@ export function SuperboxApp() {
       return (
         <FlowShell
           eyebrow=""
-          title={paid ? "Загрузите код и заполните детали" : "Детали заказа"}
+          title={paid ? (usesTrackingPickupFields ? "Заполните данные для получения" : "Загрузите код и заполните детали") : "Детали заказа"}
           description={
             paid
-              ? "Заполните данные клиента и загрузите QR или штрих-код. Мы сохраним заказ отдельным сценарием без смешивания со стандартной доставкой."
+              ? isCdekPaid
+                ? "Укажите имя, фамилию, телефон, трек-номер и код получения. Для СДЭК вложение не требуется."
+                : isFullNameTrackingPaid
+                  ? "Укажите ФИО, телефон, трек-номер и код получения. Скриншот отправления можно приложить по желанию."
+                : "Заполните данные клиента и загрузите QR или штрих-код. Мы сохраним заказ отдельным сценарием без смешивания со стандартной доставкой."
               : "Заполните форму ниже, чтобы мы могли обработать заказ с максимальной точностью"
           }
           stepLabel={pickupStepLabel}
@@ -1100,65 +1166,152 @@ export function SuperboxApp() {
             <div className="rounded-[24px] bg-[color:var(--surface-subtle)] px-5 py-4 text-sm leading-7 text-[color:var(--muted)]">
               Выбран маркетплейс: <span className="font-semibold text-[color:var(--foreground)]">{currentMarketplace}</span>
             </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Имя" htmlFor={`${activeFlow}-firstName`} error={activePickup.errors.firstName}>
-                <Input id={`${activeFlow}-firstName`} autoFocus placeholder="Введите имя" value={activePickup.firstName} onChange={(event) => updatePickup({ firstName: event.target.value })} />
+            {isFullNameTrackingPaid ? (
+              <Field label="ФИО" htmlFor={`${activeFlow}-fullName`} error={activePickup.errors.fullName}>
+                <Input id={`${activeFlow}-fullName`} autoFocus placeholder="Введите ФИО" value={activePickup.fullName} onChange={(event) => updatePickup({ fullName: event.target.value })} />
               </Field>
-              <Field label="Фамилия" htmlFor={`${activeFlow}-lastName`} error={activePickup.errors.lastName}>
-                <Input id={`${activeFlow}-lastName`} placeholder="Введите фамилию" value={activePickup.lastName} onChange={(event) => updatePickup({ lastName: event.target.value })} />
-              </Field>
-            </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Имя" htmlFor={`${activeFlow}-firstName`} error={activePickup.errors.firstName}>
+                  <Input id={`${activeFlow}-firstName`} autoFocus placeholder="Введите имя" value={activePickup.firstName} onChange={(event) => updatePickup({ firstName: event.target.value })} />
+                </Field>
+                <Field label="Фамилия" htmlFor={`${activeFlow}-lastName`} error={activePickup.errors.lastName}>
+                  <Input id={`${activeFlow}-lastName`} placeholder="Введите фамилию" value={activePickup.lastName} onChange={(event) => updatePickup({ lastName: event.target.value })} />
+                </Field>
+              </div>
+            )}
 
             <Field label="Телефон" htmlFor={`${activeFlow}-phone`} hint="Формат +7XXXXXXXXXX" error={activePickup.errors.phone}>
               <Input id={`${activeFlow}-phone`} placeholder="+7 (___) ___-__-__" value={activePickup.phone} onChange={(event) => updatePickup({ phone: event.target.value })} />
             </Field>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Количество" htmlFor={`${activeFlow}-count`} error={activePickup.errors.itemCount}>
-                <InputWithSuffix id={`${activeFlow}-count`} type="number" min="1" suffix="шт." value={activePickup.itemCount} onChange={(event) => updatePickup({ itemCount: event.target.value })} />
-              </Field>
-              <Field label="Итоговая цена" htmlFor={`${activeFlow}-amount`} error={activePickup.errors.totalAmount}>
-                <InputWithSuffix id={`${activeFlow}-amount`} type="number" min="1" suffix="₽" value={activePickup.totalAmount} onChange={(event) => updatePickup({ totalAmount: event.target.value })} />
-              </Field>
-            </div>
-
-            {paid ? (
-              <Field label="QR / штрих-код заказа" htmlFor={`${activeFlow}-attachment`} hint="PNG, JPG или PDF до 10 MB." error={activePickup.errors.attachment}>
-                <FileUploadCard
-                  id={`${activeFlow}-attachment`}
-                  accept=".jpg,.jpeg,.png,.pdf"
-                  file={activePickup.attachment}
-                  onChange={(file) => updatePickup({ attachment: file })}
-                />
-                <div className="hidden">
-                  <input
-                    id={`${activeFlow}-attachment-hidden`}
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.pdf"
-                    className="sr-only"
-                    onChange={(event) => updatePickup({ attachment: event.target.files?.[0] ?? null })}
+            {isCdekPaid ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Укажите трек-номер" htmlFor={`${activeFlow}-trackingNumber`} error={activePickup.errors.trackingNumber}>
+                  <Input
+                    id={`${activeFlow}-trackingNumber`}
+                    placeholder="Введите трек-номер"
+                    value={activePickup.trackingNumber}
+                    onChange={(event) => updatePickup({ trackingNumber: event.target.value })}
                   />
-                  <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-2xl text-[color:var(--accent-strong)]">
-                    ⌘
-                  </span>
-                  <span className="mt-5 text-lg font-semibold text-[color:var(--foreground)]">
-                    {activePickup.attachment ? activePickup.attachment.name : "Нажмите для загрузки"}
-                  </span>
-                  <span className="mt-2 text-sm text-[color:var(--muted)]">
-                    {activePickup.attachment ? "Файл прикреплён. Можно продолжать." : "Поддерживаются изображения и PDF."}
-                  </span>
+                </Field>
+                <Field label="Код получения" htmlFor={`${activeFlow}-pickupCode`} error={activePickup.errors.pickupCode}>
+                  <Input
+                    id={`${activeFlow}-pickupCode`}
+                    placeholder="Введите код получения"
+                    value={activePickup.pickupCode}
+                    onChange={(event) => updatePickup({ pickupCode: event.target.value })}
+                  />
+                </Field>
+              </div>
+            ) : isFullNameTrackingPaid ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Укажите трек-номер" htmlFor={`${activeFlow}-trackingNumber`} error={activePickup.errors.trackingNumber}>
+                    <Input
+                      id={`${activeFlow}-trackingNumber`}
+                      placeholder="Введите трек-номер"
+                      value={activePickup.trackingNumber}
+                      onChange={(event) => updatePickup({ trackingNumber: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Код получения" htmlFor={`${activeFlow}-pickupCode`} error={activePickup.errors.pickupCode}>
+                    <Input
+                      id={`${activeFlow}-pickupCode`}
+                      placeholder="Введите код получения"
+                      value={activePickup.pickupCode}
+                      onChange={(event) => updatePickup({ pickupCode: event.target.value })}
+                    />
+                  </Field>
                 </div>
-              </Field>
+
+                <Field label={paidFieldCopy.attachmentLabel} htmlFor={`${activeFlow}-attachment`} hint={paidFieldCopy.attachmentHint} error={activePickup.errors.attachment}>
+                  <FileUploadCard
+                    id={`${activeFlow}-attachment`}
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    file={activePickup.attachment}
+                    onChange={(file) => updatePickup({ attachment: file })}
+                  />
+                </Field>
+              </>
+            ) : paid ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label={paidFieldCopy.itemCountLabel}
+                    htmlFor={`${activeFlow}-count`}
+                    hint="Введите общее количество товаров для получения"
+                    error={activePickup.errors.itemCount}
+                  >
+                    <InputWithSuffix id={`${activeFlow}-count`} type="number" min="1" suffix="шт." value={activePickup.itemCount} onChange={(event) => updatePickup({ itemCount: event.target.value })} />
+                  </Field>
+                  <Field
+                    label={paidFieldCopy.totalAmountLabel}
+                    htmlFor={`${activeFlow}-amount`}
+                    hint="Укажите, пожалуйста, общую сумму всех товаров в заказе"
+                    error={activePickup.errors.totalAmount}
+                  >
+                    <InputWithSuffix id={`${activeFlow}-amount`} type="number" min="1" suffix="₽" value={activePickup.totalAmount} onChange={(event) => updatePickup({ totalAmount: event.target.value })} />
+                  </Field>
+                </div>
+
+                <Field label={paidFieldCopy.attachmentLabel} htmlFor={`${activeFlow}-attachment`} hint={paidFieldCopy.attachmentHint} error={activePickup.errors.attachment}>
+                  <FileUploadCard
+                    id={`${activeFlow}-attachment`}
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    file={activePickup.attachment}
+                    onChange={(file) => updatePickup({ attachment: file })}
+                  />
+                  <div className="hidden">
+                    <input
+                      id={`${activeFlow}-attachment-hidden`}
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.pdf"
+                      className="sr-only"
+                      onChange={(event) => updatePickup({ attachment: event.target.files?.[0] ?? null })}
+                    />
+                    <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-2xl text-[color:var(--accent-strong)]">
+                      ↑
+                    </span>
+                    <span className="mt-5 text-lg font-semibold text-[color:var(--foreground)]">
+                      {activePickup.attachment ? activePickup.attachment.name : "Нажмите для загрузки"}
+                    </span>
+                    <span className="mt-2 text-sm text-[color:var(--muted)]">
+                      {activePickup.attachment ? "Файл прикреплён. Можно продолжать." : "Поддерживаются изображения и PDF."}
+                    </span>
+                  </div>
+                </Field>
+              </>
             ) : (
-              <Field label="Ссылка на товар" htmlFor={`${activeFlow}-sourceUrl`} hint="Ссылка должна соответствовать выбранному маркетплейсу." error={activePickup.errors.sourceUrl}>
-                <Input
-                  id={`${activeFlow}-sourceUrl`}
-                  placeholder={activePickupSourceUrlPlaceholder}
-                  value={activePickup.sourceUrl}
-                  onChange={(event) => updatePickup({ sourceUrl: event.target.value })}
-                />
-              </Field>
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Количество"
+                    htmlFor={`${activeFlow}-count`}
+                    hint="Введите общее количество товаров для получения"
+                    error={activePickup.errors.itemCount}
+                  >
+                    <InputWithSuffix id={`${activeFlow}-count`} type="number" min="1" suffix="шт." value={activePickup.itemCount} onChange={(event) => updatePickup({ itemCount: event.target.value })} />
+                  </Field>
+                  <Field
+                    label="Итоговая цена"
+                    htmlFor={`${activeFlow}-amount`}
+                    hint="Укажите, пожалуйста, общую сумму всех товаров в заказе"
+                    error={activePickup.errors.totalAmount}
+                  >
+                    <InputWithSuffix id={`${activeFlow}-amount`} type="number" min="1" suffix="₽" value={activePickup.totalAmount} onChange={(event) => updatePickup({ totalAmount: event.target.value })} />
+                  </Field>
+                </div>
+
+                <Field label="Ссылка на товар" htmlFor={`${activeFlow}-sourceUrl`} hint="Ссылка должна соответствовать выбранному маркетплейсу." error={activePickup.errors.sourceUrl}>
+                  <Input
+                    id={`${activeFlow}-sourceUrl`}
+                    placeholder={activePickupSourceUrlPlaceholder}
+                    value={activePickup.sourceUrl}
+                    onChange={(event) => updatePickup({ sourceUrl: event.target.value })}
+                  />
+                </Field>
+              </>
             )}
 
             {activePickup.errors.form ? (
@@ -1200,174 +1353,15 @@ export function SuperboxApp() {
   };
 
   const renderDeliveryFlow = () => {
-    if (delivery.step === 1) {
-      return (
-        <FlowShell
-          eyebrow=""
-          title="Доставка на дом"
-          description="Фиксированная стоимость доставки по городу — 300 ₽. Далее выберите маркетплейс, вставьте ссылку и завершите оформление."
-          stepLabel={deliveryStepLabel}
-          align="center"
-          className="mx-auto max-w-[820px]"
-        >
-          <div className="text-center">
-            <div className="hidden rounded-[28px] border border-[color:rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] p-6 text-sm leading-8 text-[color:var(--foreground)]">
-              Ссылка на товар либо распознается автоматически, либо уйдёт в ручной fallback без потери сценария.
-            </div>
-            <PrimaryButton onClick={() => setDelivery((current) => ({ ...current, step: 2 }))}>Продолжить</PrimaryButton>
-          </div>
-        </FlowShell>
-      );
-    }
-
-    if (delivery.step === 2) {
-      return (
-        <section className="mx-auto max-w-[1140px]">
-          <SectionIntro
-            eyebrow="Marketplace"
-            title="Выберите маркетплейс"
-            description="Сначала фиксируем источник ссылки, чтобы парсер и fallback работали в правильном контексте."
-            centered
-          />
-          <div className="mt-10">
-            <MarketplaceGrid value={delivery.marketplace} onSelect={(marketplace) => setDelivery((current) => ({ ...current, marketplace, errors: {} }))} />
-          </div>
-          {delivery.errors.marketplace ? <p className="mt-4 text-center text-sm font-semibold text-[color:var(--danger)]">{delivery.errors.marketplace}</p> : null}
-          <div className="mt-8 flex justify-center gap-3">
-            <SecondaryButton onClick={() => setDelivery((current) => ({ ...current, step: 1 }))}>Назад</SecondaryButton>
-            <PrimaryButton onClick={continueDeliverySelection}>Продолжить</PrimaryButton>
-          </div>
-        </section>
-      );
-    }
-
-    if (delivery.step === 3) {
-      return (
-        <section className="mx-auto max-w-[920px]">
-          <SectionIntro
-            eyebrow=""
-            title="Заказ по ссылке"
-            description="Просто вставьте ссылку на товар и мы сделаем всё остальное. Выбранный маркетплейс уже сохранён."
-            centered
-          />
-          <div className="mt-8 rounded-[34px] border border-white/70 bg-white/92 p-4 shadow-[0_24px_60px_rgba(84,58,128,0.1)]">
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="flex min-w-0 flex-1 items-center gap-3 rounded-full bg-[color:var(--surface-subtle)] px-5 py-3">
-                <span className="text-[color:var(--accent-strong)]">⌁</span>
-                <input
-                  aria-label="Ссылка на товар"
-                  className="min-w-0 flex-1 bg-transparent text-base text-[color:var(--foreground)] outline-none placeholder:text-[color:rgba(44,47,48,0.28)]"
-                  placeholder={deliveryUrlPlaceholder}
-                  value={delivery.url}
-                  onChange={(event) => setDelivery((current) => ({ ...current, url: event.target.value }))}
-                />
-              </div>
-              <PrimaryButton onClick={() => void submitDeliveryPreview()} disabled={pending} className="min-w-[164px]">
-                {pending ? "Импорт..." : "Импорт"}
-              </PrimaryButton>
-            </div>
-          </div>
-          {delivery.errors.url ? <p className="mt-3 text-center text-sm font-semibold text-[color:var(--danger)]">{delivery.errors.url}</p> : null}
-          <div className="hidden mx-auto mt-10 max-w-[760px] rounded-[34px] bg-white/92 p-6 shadow-[0_24px_60px_rgba(84,58,128,0.08)]">
-            <div className="grid gap-5 md:grid-cols-[160px_1fr] md:items-center">
-              <div className="h-40 rounded-[28px] bg-[linear-gradient(135deg,#6c7751,#a1b19a)]" />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--accent)]">{delivery.marketplace ? humanizeMarketplace(delivery.marketplace) : "Маркетплейс"}</p>
-                <p className="mt-3 text-3xl font-semibold text-[color:var(--foreground)]">Превью товара появится здесь</p>
-                <p className="mt-3 text-base leading-8 text-[color:var(--muted)]">
-                  После анализа покажем название, цену и данные для подтверждения заказа. Если парсер не справится, ссылку всё равно сохраним.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 flex justify-center gap-3">
-            <SecondaryButton onClick={() => setDelivery((current) => ({ ...current, step: 2 }))}>Назад</SecondaryButton>
-          </div>
-        </section>
-      );
-    }
-
-    if (delivery.step === 4) {
-      return (
-        <FlowShell
-          eyebrow=""
-          title="Подтвердите заказ"
-          description="Проверьте распознанный товар и заполните данные получателя. Этот экран опирается на макет Stitch для доставки по ссылке."
-          stepLabel={deliveryStepLabel}
-          align="center"
-          className="mx-auto max-w-[920px]"
-        >
-          <div className="space-y-6">
-            <div className="rounded-[34px] bg-white p-6 shadow-[0_16px_34px_rgba(84,58,128,0.06)]">
-              <div className="grid gap-5 md:grid-cols-[160px_1fr] md:items-center">
-                <div className="h-40 rounded-[28px] bg-[linear-gradient(135deg,#6c7751,#a1b19a)]" />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--accent)]">
-                    {delivery.marketplace ? humanizeMarketplace(delivery.marketplace) : "Маркетплейс"}
-                  </p>
-                  <p className="mt-3 text-4xl font-semibold leading-none text-[color:var(--foreground)]">
-                    {delivery.preview?.title ?? "Товар будет обработан менеджером"}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {delivery.preview?.price != null ? (
-                      <span className="rounded-full bg-[linear-gradient(135deg,rgba(196,46,160,0.12),rgba(124,51,255,0.12))] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--accent-strong)]">
-                        {delivery.preview.price.toLocaleString("ru-RU")} ₽
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-4 text-base leading-8 text-[color:var(--muted)]">
-                    {delivery.parserMessage ?? "Ссылка сохранена для ручной обработки менеджером."}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <form
-              className="space-y-5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void submitDeliveryOrder();
-              }}
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Имя" htmlFor="delivery-firstName" error={delivery.errors.firstName}>
-                  <Input id="delivery-firstName" autoFocus placeholder="Введите имя" value={delivery.firstName} onChange={(event) => setDelivery((current) => ({ ...current, firstName: event.target.value }))} />
-                </Field>
-                <Field label="Телефон" htmlFor="delivery-phone" error={delivery.errors.phone}>
-                  <Input id="delivery-phone" placeholder="+7 (___) ___-__-__" value={delivery.phone} onChange={(event) => setDelivery((current) => ({ ...current, phone: event.target.value }))} />
-                </Field>
-              </div>
-              <Field label="Адрес доставки" htmlFor="delivery-address" error={delivery.errors.deliveryAddress}>
-                <Textarea id="delivery-address" placeholder="Укажите полный адрес с подъездом и этажом" value={delivery.deliveryAddress} onChange={(event) => setDelivery((current) => ({ ...current, deliveryAddress: event.target.value }))} />
-              </Field>
-              {delivery.errors.form ? (
-                <div className="rounded-[24px] border border-[color:rgba(220,38,38,0.16)] bg-[rgba(220,38,38,0.06)] px-5 py-4 text-sm font-semibold text-[color:var(--danger)]">
-                  {delivery.errors.form}
-                </div>
-              ) : null}
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-                <SecondaryButton type="button" onClick={() => setDelivery((current) => ({ ...current, step: 3 }))}>
-                  Назад
-                </SecondaryButton>
-                <PrimaryButton type="submit" disabled={pending}>
-                  {pending ? "Создаём..." : "Добавить в заказ"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        </FlowShell>
-      );
-    }
-
     if (delivery.result) {
       return (
         <SuccessState
           order={delivery.result}
-          title="Заказ успешно оформлен!"
-          description="Ссылка, адрес и контактные данные сохранены. Можно создать ещё одну доставку или вернуться на главный экран."
-          primaryLabel="Создать ещё заказ"
+          title="Доставка успешно оформлена!"
+          description="Мы сохранили номера заказов, адрес, дату и выбранный интервал доставки. Дальше можно оформить ещё одну доставку или вернуться на главный экран."
+          primaryLabel="Создать ещё доставку"
           onPrimary={() => {
-            setDelivery({ ...createDeliveryState(), step: 2 });
+            setDelivery(createDeliveryState());
           }}
           secondaryLabel="На главную"
           onSecondary={() => openFlow("overview")}
@@ -1375,14 +1369,137 @@ export function SuperboxApp() {
       );
     }
 
-    return null;
+    return (
+      <FlowShell
+        eyebrow=""
+        title="Доставка на дом"
+        description="Введите номера заказов, адрес, дату и выберите удобный интервал доставки."
+        stepLabel={deliveryStepLabel}
+        align="center"
+        className="mx-auto max-w-[820px]"
+      >
+        <form
+          className="mx-auto max-w-[760px] space-y-8"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitDeliveryOrder();
+          }}
+        >
+          <Field
+            label="Введите номера заказов для доставки на дом"
+            htmlFor="delivery-orderNumbers"
+            error={delivery.errors.orderNumbers}
+          >
+            <div className="space-y-4">
+              {delivery.orderNumbers.map((orderNumber, index) => {
+                const isLast = index === delivery.orderNumbers.length - 1;
+                return (
+                  <div key={index} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_64px] sm:items-center">
+                    <Input
+                      id={index === 0 ? "delivery-orderNumbers" : undefined}
+                      autoFocus={index === 0}
+                      inputMode="numeric"
+                      placeholder={index === 0 ? "669281" : `Номер заказа ${index + 1}`}
+                      value={orderNumber}
+                      onChange={(event) =>
+                        setDelivery((current) => ({
+                          ...current,
+                          orderNumbers: current.orderNumbers.map((value, valueIndex) => (valueIndex === index ? event.target.value : value)),
+                          errors: { ...current.errors, orderNumbers: "" },
+                        }))
+                      }
+                    />
+                    {isLast ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDelivery((current) => ({
+                            ...current,
+                            orderNumbers: [...current.orderNumbers, ""],
+                          }))
+                        }
+                        className="inline-flex h-14 w-14 shrink-0 items-center justify-center self-start rounded-[22px] border border-[color:rgba(196,46,160,0.24)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,244,255,0.96))] text-[30px] font-semibold leading-none text-[color:var(--accent-strong)] shadow-[0_14px_28px_rgba(123,77,255,0.12)] transition hover:border-[color:rgba(196,46,160,0.38)] hover:shadow-[0_18px_34px_rgba(123,77,255,0.18)] sm:self-auto"
+                        aria-label="Добавить ещё заказ"
+                      >
+                        +
+                      </button>
+                    ) : (
+                      <div className="hidden sm:block" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Field>
+
+          {hasDeliveryOrders ? (
+            <>
+              <Field label="Укажите адрес доставки" htmlFor="delivery-address" error={delivery.errors.deliveryAddress}>
+                <Textarea
+                  id="delivery-address"
+                  placeholder="Укажите полный адрес с улицей, домом и квартирой"
+                  className="min-h-[128px]"
+                  value={delivery.deliveryAddress}
+                  onChange={(event) => setDelivery((current) => ({ ...current, deliveryAddress: event.target.value }))}
+                />
+              </Field>
+
+              <Field label="Укажите желаемую дату доставки" htmlFor="delivery-date" error={delivery.errors.deliveryDate}>
+                <Input
+                  id="delivery-date"
+                  type="date"
+                  value={delivery.deliveryDate}
+                  onChange={(event) => setDelivery((current) => ({ ...current, deliveryDate: event.target.value }))}
+                />
+              </Field>
+
+              <Field label="Выберите промежуток времени" htmlFor="delivery-timeSlot" error={delivery.errors.deliveryTimeSlot}>
+                <div id="delivery-timeSlot" className="grid gap-3 sm:grid-cols-3">
+                  {homeDeliveryTimeSlotValues.map((slot) => {
+                    const active = delivery.deliveryTimeSlot === slot;
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() => setDelivery((current) => ({ ...current, deliveryTimeSlot: slot, errors: { ...current.errors, deliveryTimeSlot: "" } }))}
+                        className={`min-h-14 rounded-[22px] border px-4 py-4 text-sm font-semibold transition ${
+                          active
+                            ? "border-[color:rgba(196,46,160,0.32)] bg-white text-[color:var(--foreground)] shadow-[0_16px_32px_rgba(123,77,255,0.16)]"
+                            : "border-[color:var(--line)] bg-[color:var(--surface-subtle)] text-[color:var(--muted)] hover:border-[color:rgba(123,77,255,0.18)] hover:bg-white"
+                        }`}
+                      >
+                        {slot}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+            </>
+          ) : null}
+
+          {delivery.errors.form ? (
+            <div className="rounded-[24px] border border-[color:rgba(220,38,38,0.16)] bg-[rgba(220,38,38,0.06)] px-5 py-4 text-sm font-semibold text-[color:var(--danger)]">
+              {delivery.errors.form}
+            </div>
+          ) : null}
+
+          {hasDeliveryOrders ? (
+            <div className="flex justify-end pt-4">
+              <PrimaryButton type="submit" disabled={pending} className="min-h-14 min-w-[180px] px-6">
+                {pending ? "Создаём..." : "Продолжить"}
+              </PrimaryButton>
+            </div>
+          ) : null}
+        </form>
+      </FlowShell>
+    );
   };
 
   const renderLookupFlow = () => (
     <section className="mx-auto max-w-[920px]">
       <SectionIntro
         eyebrow=""
-        title="Найти заказ"
+        title="Отследить посылку"
         description="Введите номер отслеживания или номер заказа, чтобы мгновенно узнать текущий статус доставки."
         centered
       />
@@ -1535,6 +1652,17 @@ export function SuperboxApp() {
     { w: "400–499,9 кг", wh: "7 800 ₽", door: "9 300 ₽" },
   ];
 
+  const courierRates = [
+    { w: "До 9,9 кг", p: "450 ₽" },
+    { w: "10–29,9 кг", p: "700 ₽" },
+    { w: "30–99,9 кг", p: "900 ₽" },
+    { w: "100–149,9 кг", p: "1 000 ₽" },
+    { w: "150–199,9 кг", p: "1 100 ₽" },
+    { w: "200–299,9 кг", p: "1 200 ₽" },
+    { w: "300–399,9 кг", p: "1 300 ₽" },
+    { w: "400–499,9 кг", p: "1 500 ₽" },
+  ];
+
   const renderTariffsView = () => (
     <section className="mx-auto w-full max-w-[1100px] space-y-6">
       {/* Header */}
@@ -1544,7 +1672,7 @@ export function SuperboxApp() {
           Тарифная сетка
         </h2>
         <p className="mt-3 text-sm leading-7 text-[color:var(--muted)]">
-          WB Дорогостой · WB ОПТ · СДЭК · Авито · DPD · БРОСТ
+          WB Дорогостой · WB ОПТ · СДЭК · Авито · DPD
         </p>
       </div>
 
@@ -1577,9 +1705,7 @@ export function SuperboxApp() {
           </table>
         </div>
 
-        {/* Bulk + extras column */}
         <div className="flex flex-col gap-5">
-          {/* Bulk rates card */}
           <div className="flow-surface float-in rounded-[28px] p-6" style={{ animationDelay: "60ms" }}>
             <div className="mb-4 border-b border-[color:var(--line)] pb-4">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)]">Крупногабаритные товары</p>
@@ -1608,19 +1734,30 @@ export function SuperboxApp() {
             </table>
           </div>
 
-          {/* Additional services card */}
           <div className="flow-surface float-in rounded-[28px] p-6" style={{ animationDelay: "120ms" }}>
-            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)]">Дополнительные услуги</p>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-[color:var(--muted)]">📦 Забор с адреса</span>
-                <span className="text-sm font-bold text-[color:var(--foreground)]">1 500 ₽</span>
-              </div>
-              <div className="flex items-center justify-between border-t border-[color:var(--line)] pt-3">
-                <span className="text-sm text-[color:var(--muted)]">🏢 Подъём на этаж</span>
-                <span className="text-sm font-bold text-[color:var(--foreground)]">700 ₽ / этаж</span>
-              </div>
+            <div className="mb-4 border-b border-[color:var(--line)] pb-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)]">Курьерская доставка</p>
+              <p className="mt-1 text-xl font-semibold text-[color:var(--foreground)]">Тарифы по весу</p>
             </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                  <th className="pb-2 text-left font-semibold">Вес</th>
+                  <th className="pb-2 text-right font-semibold">Цена</th>
+                </tr>
+              </thead>
+              <tbody>
+                {courierRates.map((row, i) => (
+                  <tr
+                    key={row.w}
+                    className={`border-t border-[color:var(--line)] ${i % 2 === 0 ? "" : "bg-[color:var(--surface-soft)]"}`}
+                  >
+                    <td className="py-2 text-[color:var(--muted)]">{row.w}</td>
+                    <td className="py-2 text-right font-semibold text-[color:var(--foreground)]">{row.p}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

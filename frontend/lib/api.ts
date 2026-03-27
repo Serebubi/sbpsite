@@ -1,4 +1,4 @@
-import type { OrderRecord, ProductPreview } from "shared";
+import type { HomeDeliveryTimeSlot, OrderRecord } from "shared";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
@@ -11,31 +11,16 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return data;
 }
 
-export async function previewLink(payload: { marketplace: string; url: string }) {
-  const response = await fetch(`${API_BASE_URL}/orders/preview-link`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return parseResponse<{
-    marketplace: string;
-    preview: ProductPreview | null;
-    mode: "parsed" | "fallback";
-    message: string;
-  }>(response);
-}
-
 export async function createPickupOrder(payload: {
   orderType: "pickup_standard" | "pickup_paid";
   marketplace: string;
   firstName: string;
-  lastName: string;
+  lastName?: string;
   phone: string;
-  itemCount: string;
-  totalAmount: string;
+  itemCount?: string;
+  totalAmount?: string;
+  trackingNumber?: string;
+  pickupCode?: string;
   sourceUrl?: string;
   attachment?: File;
 }) {
@@ -43,10 +28,22 @@ export async function createPickupOrder(payload: {
   formData.set("orderType", payload.orderType);
   formData.set("marketplace", payload.marketplace);
   formData.set("firstName", payload.firstName);
-  formData.set("lastName", payload.lastName);
+  if (payload.lastName) {
+    formData.set("lastName", payload.lastName);
+  }
   formData.set("phone", payload.phone);
-  formData.set("itemCount", payload.itemCount);
-  formData.set("totalAmount", payload.totalAmount);
+  if (payload.itemCount) {
+    formData.set("itemCount", payload.itemCount);
+  }
+  if (payload.totalAmount) {
+    formData.set("totalAmount", payload.totalAmount);
+  }
+  if (payload.trackingNumber) {
+    formData.set("trackingNumber", payload.trackingNumber);
+  }
+  if (payload.pickupCode) {
+    formData.set("pickupCode", payload.pickupCode);
+  }
   if (payload.sourceUrl) {
     formData.set("sourceUrl", payload.sourceUrl);
   }
@@ -63,21 +60,17 @@ export async function createPickupOrder(payload: {
 }
 
 export async function createHomeDeliveryOrder(payload: {
-  marketplace: string;
-  firstName: string;
-  phone: string;
+  orderNumbers: string[];
   deliveryAddress: string;
-  sourceUrl: string;
-  productPreview: ProductPreview | null;
+  deliveryDate: string;
+  deliveryTimeSlot: HomeDeliveryTimeSlot;
 }) {
   const formData = new FormData();
   formData.set("orderType", "home_delivery");
-  formData.set("marketplace", payload.marketplace);
-  formData.set("firstName", payload.firstName);
-  formData.set("phone", payload.phone);
+  formData.set("orderNumbers", JSON.stringify(payload.orderNumbers));
   formData.set("deliveryAddress", payload.deliveryAddress);
-  formData.set("sourceUrl", payload.sourceUrl);
-  formData.set("productPreview", JSON.stringify(payload.productPreview));
+  formData.set("deliveryDate", payload.deliveryDate);
+  formData.set("deliveryTimeSlot", payload.deliveryTimeSlot);
 
   const response = await fetch(`${API_BASE_URL}/orders/create`, {
     method: "POST",

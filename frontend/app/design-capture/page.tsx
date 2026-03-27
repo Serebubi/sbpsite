@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Script from "next/script";
 
-import { humanizeMarketplace, marketplaces, type OrderRecord } from "shared";
+import { homeDeliveryMarketplaceId, humanizeMarketplace, marketplaces, type OrderRecord } from "shared";
 
 import { OrderSummaryCard } from "@/components/order-summary-card";
 
@@ -17,10 +17,15 @@ const sampleOrder: OrderRecord = {
     lastName: "К.",
     phone: "+79997776655",
   },
+  relatedOrderNumbers: [],
   itemCount: 1,
   totalAmount: 1000,
+  trackingNumber: null,
+  pickupCode: null,
   sourceUrl: "https://www.wildberries.ru/catalog/12473723/detail.aspx",
   deliveryAddress: null,
+  deliveryDate: null,
+  deliveryTimeSlot: null,
   productPreview: null,
   attachment: null,
   crmSyncState: "pending",
@@ -37,17 +42,13 @@ const deliveryOrder: OrderRecord = {
   ...sampleOrder,
   orderNumber: "669282",
   orderType: "home_delivery",
-  marketplace: "ozon",
+  marketplace: homeDeliveryMarketplaceId,
+  relatedOrderNumbers: ["669281", "669283"],
   deliveryAddress: "Мариуполь, проспект Ленина, 11",
-  sourceUrl: "https://www.ozon.ru/product/test-item",
-  productPreview: {
-    title: "Умная лампа с поддержкой Matter",
-    price: 3490,
-    imageUrl: null,
-    sourceUrl: "https://www.ozon.ru/product/test-item",
-    parserMode: "parsed",
-    parserMessage: "Карточка успешно распознана.",
-  },
+  sourceUrl: null,
+  deliveryDate: "2026-03-28",
+  deliveryTimeSlot: "12:00-15:00",
+  productPreview: null,
 };
 
 function ShowcaseCard({
@@ -104,7 +105,7 @@ export default function DesignCapturePage() {
             ["Сделать заказ", "Новый заказ с отправкой ссылки на товар."],
             ["Найти заказ", "Проверка по numeric order number."],
             ["Оплаченный заказ", "QR/штрих-код и предупреждение по сроку действия."],
-            ["Доставка на дом", "Ссылка, parser preview и адрес доставки."],
+            ["Доставка на дом", "Номера заказов, адрес, дата и выбор временного интервала для курьера."],
             ["Отменить заказ", "Проверка перед сменой статуса."],
             ["Поддержка", "Переход в Telegram без поиска контакта."],
           ].map(([title, text]) => (
@@ -175,11 +176,8 @@ export default function DesignCapturePage() {
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
-        <ShowcaseCard eyebrow="Home delivery" title="Доставка на дом и parser preview" description="Курьерский сценарий показывает warning, parser preview и отдельный блок с адресом доставки.">
+        <ShowcaseCard eyebrow="Home delivery" title="Доставка на дом по существующим заказам" description="Курьерский сценарий собирает номера заказов, адрес, дату и выбранный интервал доставки без ссылки на товар.">
           <div className="space-y-4 rounded-[28px] border border-[color:var(--line)] bg-white/90 p-5">
-            <div className="rounded-[24px] border border-[color:rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] p-5 text-sm leading-7 text-[color:var(--foreground)]">
-              Стоимость доставки по городу — 300 ₽. После поступления заказа курьер свяжется для уточнения времени.
-            </div>
             <OrderSummaryCard order={deliveryOrder} />
           </div>
         </ShowcaseCard>

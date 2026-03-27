@@ -3,6 +3,7 @@ import { v4 as uuid } from "uuid";
 import {
   cancelOrderSchema,
   createOrderSchema,
+  homeDeliveryMarketplaceId,
   orderSchema,
   pickupAddress,
   type OrderRecord,
@@ -41,23 +42,57 @@ export class OrderService {
       ) + 1,
     );
     const createdAt = nowIso();
-    const lastName = "lastName" in payload ? payload.lastName : undefined;
+    const linkedOrders =
+      payload.orderType === "home_delivery"
+        ? await Promise.all(payload.orderNumbers.map(async (orderNumber) => this.repository.findByOrderNumber(orderNumber)))
+        : null;
+
+    if (payload.orderType === "home_delivery") {
+      if (!linkedOrders || linkedOrders.some((order) => !order)) {
+        throw new HttpError(400, "Не удалось найти один или несколько номеров заказов.");
+      }
+
+      const primaryOrder = linkedOrders[0];
+      if (!primaryOrder) {
+        throw new HttpError(400, "Не удалось определить заказ для доставки на дом.");
+      }
+
+      const sameCustomer = linkedOrders.every(
+        (order) =>
+          order &&
+          order.customer.phone === primaryOrder.customer.phone &&
+          order.customer.firstName === primaryOrder.customer.firstName &&
+          order.customer.lastName === primaryOrder.customer.lastName,
+      );
+
+      if (!sameCustomer) {
+        throw new HttpError(400, "Номера заказов должны принадлежать одному получателю.");
+      }
+    }
+
+    const homeDeliveryCustomer = linkedOrders?.[0]?.customer ?? null;
+    const lastName = payload.orderType === "home_delivery" ? homeDeliveryCustomer?.lastName : "lastName" in payload ? payload.lastName : undefined;
     const baseOrder: OrderRecord = orderSchema.parse({
       id: uuid(),
       orderNumber: nextNumber,
       orderType: payload.orderType,
-      marketplace: payload.marketplace,
+      marketplace: payload.orderType === "home_delivery" ? homeDeliveryMarketplaceId : payload.marketplace,
       status: "CREATED",
       pickupAddress,
       customer: {
-        firstName: payload.firstName,
+        firstName: payload.orderType === "home_delivery" ? homeDeliveryCustomer?.firstName ?? "Клиент" : payload.firstName,
         lastName: lastName ?? null,
-        phone: payload.phone,
+        phone: payload.orderType === "home_delivery" ? homeDeliveryCustomer?.phone ?? "+79990000000" : payload.phone,
       },
+      relatedOrderNumbers: "orderNumbers" in payload ? payload.orderNumbers : [],
       itemCount: "itemCount" in payload ? payload.itemCount : null,
       totalAmount: "totalAmount" in payload ? payload.totalAmount : null,
+      trackingNumber: "trackingNumber" in payload ? payload.trackingNumber ?? null : null,
+      pickupCode: "pickupCode" in payload ? payload.pickupCode ?? null : null,
       sourceUrl: "sourceUrl" in payload ? payload.sourceUrl : null,
       deliveryAddress: "deliveryAddress" in payload ? payload.deliveryAddress : null,
+      deliveryDate: "deliveryDate" in payload ? payload.deliveryDate : null,
+      deliveryTimeSlot: "deliveryTimeSlot" in payload ? payload.deliveryTimeSlot : null,
       productPreview: "productPreview" in payload ? payload.productPreview : null,
       attachment,
       crmSyncState: "pending",

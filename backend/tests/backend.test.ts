@@ -106,12 +106,215 @@ describe("backend api", () => {
     expect(createResponse.body.order.status).toBe("CREATED");
   });
 
+  it("creates a home delivery request from existing order numbers", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+
+      if (url.includes("crm.duplicate.findbycomm")) {
+        return createBitrixResponse({});
+      }
+
+      if (url.includes("crm.contact.add")) {
+        return createBitrixResponse(333);
+      }
+
+      if (url.includes("crm.deal.add")) {
+        return createBitrixResponse(701);
+      }
+
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const app = createApp();
+
+    const baseOrderResponse = await request(app)
+      .post("/orders/create")
+      .field("orderType", "pickup_standard")
+      .field("marketplace", "wildberries")
+      .field("firstName", "Сергей")
+      .field("lastName", "Иванов")
+      .field("phone", "+79997776655")
+      .field("itemCount", "2")
+      .field("totalAmount", "4300")
+      .field("sourceUrl", "https://www.wildberries.ru/catalog/123/detail.aspx");
+
+    expect(baseOrderResponse.status).toBe(201);
+
+    const deliveryResponse = await request(app)
+      .post("/orders/create")
+      .field("orderType", "home_delivery")
+      .field("orderNumbers", JSON.stringify([baseOrderResponse.body.order.orderNumber]))
+      .field("deliveryAddress", "Мариуполь, Ленина 1")
+      .field("deliveryDate", "2026-03-28")
+      .field("deliveryTimeSlot", "12:00-15:00");
+
+    expect(deliveryResponse.status).toBe(201);
+    expect(deliveryResponse.body.order.marketplace).toBe("home_delivery");
+    expect(deliveryResponse.body.order.relatedOrderNumbers).toEqual([baseOrderResponse.body.order.orderNumber]);
+    expect(deliveryResponse.body.order.deliveryTimeSlot).toBe("12:00-15:00");
+  });
+
+
+  it("creates a paid cdek order without attachment", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+
+      if (url.includes("crm.duplicate.findbycomm")) {
+        return createBitrixResponse({});
+      }
+
+      if (url.includes("crm.contact.add")) {
+        return createBitrixResponse(333);
+      }
+
+      if (url.includes("crm.deal.add")) {
+        return createBitrixResponse(777);
+      }
+
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const app = createApp();
+
+    const createResponse = await request(app)
+      .post("/orders/create")
+      .field("orderType", "pickup_paid")
+      .field("marketplace", "cdek")
+      .field("firstName", "Ivan")
+      .field("lastName", "Ivanov")
+      .field("phone", "+79997776655")
+      .field("trackingNumber", "CDEK-123456")
+      .field("pickupCode", "7788");
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.order.marketplace).toBe("cdek");
+    expect(createResponse.body.order.trackingNumber).toBe("CDEK-123456");
+    expect(createResponse.body.order.pickupCode).toBe("7788");
+    expect(createResponse.body.order.attachment).toBeNull();
+  });
+
+  it("creates a paid 5post order without attachment", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+
+      if (url.includes("crm.duplicate.findbycomm")) {
+        return createBitrixResponse({});
+      }
+
+      if (url.includes("crm.contact.add")) {
+        return createBitrixResponse(333);
+      }
+
+      if (url.includes("crm.deal.add")) {
+        return createBitrixResponse(778);
+      }
+
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const app = createApp();
+
+    const createResponse = await request(app)
+      .post("/orders/create")
+      .field("orderType", "pickup_paid")
+      .field("marketplace", "5post")
+      .field("firstName", "Ivan Ivanovich")
+      .field("phone", "+79997776655")
+      .field("trackingNumber", "5POST-123456")
+      .field("pickupCode", "4455");
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.order.marketplace).toBe("5post");
+    expect(createResponse.body.order.trackingNumber).toBe("5POST-123456");
+    expect(createResponse.body.order.pickupCode).toBe("4455");
+    expect(createResponse.body.order.attachment).toBeNull();
+  });
+
+  it("creates a paid dpd order without attachment", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+
+      if (url.includes("crm.duplicate.findbycomm")) {
+        return createBitrixResponse({});
+      }
+
+      if (url.includes("crm.contact.add")) {
+        return createBitrixResponse(333);
+      }
+
+      if (url.includes("crm.deal.add")) {
+        return createBitrixResponse(779);
+      }
+
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const app = createApp();
+
+    const createResponse = await request(app)
+      .post("/orders/create")
+      .field("orderType", "pickup_paid")
+      .field("marketplace", "dpd")
+      .field("firstName", "Ivan Ivanovich")
+      .field("phone", "+79997776655")
+      .field("trackingNumber", "DPD-123456")
+      .field("pickupCode", "5566");
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.order.marketplace).toBe("dpd");
+    expect(createResponse.body.order.trackingNumber).toBe("DPD-123456");
+    expect(createResponse.body.order.pickupCode).toBe("5566");
+    expect(createResponse.body.order.attachment).toBeNull();
+  });
+
+  it("creates a paid avito order without attachment", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+
+      if (url.includes("crm.duplicate.findbycomm")) {
+        return createBitrixResponse({});
+      }
+
+      if (url.includes("crm.contact.add")) {
+        return createBitrixResponse(333);
+      }
+
+      if (url.includes("crm.deal.add")) {
+        return createBitrixResponse(780);
+      }
+
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const app = createApp();
+
+    const createResponse = await request(app)
+      .post("/orders/create")
+      .field("orderType", "pickup_paid")
+      .field("marketplace", "avito")
+      .field("firstName", "Ivan Ivanovich")
+      .field("phone", "+79997776655")
+      .field("trackingNumber", "AVITO-123456")
+      .field("pickupCode", "6677");
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.order.marketplace).toBe("avito");
+    expect(createResponse.body.order.trackingNumber).toBe("AVITO-123456");
+    expect(createResponse.body.order.pickupCode).toBe("6677");
+    expect(createResponse.body.order.attachment).toBeNull();
+  });
+
   it("maps an order to bitrix payload", () => {
     const payload = mapOrderToBitrixPayload({
       id: "5fb3108c-8ed0-4eaf-9271-fcd0f463b812",
       orderNumber: "123456",
       orderType: "home_delivery",
-      marketplace: "ozon",
+      marketplace: "home_delivery",
       status: "CREATED",
       pickupAddress: "Грушевского, 8",
       customer: {
@@ -119,18 +322,16 @@ describe("backend api", () => {
         lastName: null,
         phone: "+79997776655",
       },
+      relatedOrderNumbers: ["669281", "669282"],
       itemCount: null,
       totalAmount: null,
-      sourceUrl: "https://www.ozon.ru/product/test",
+      trackingNumber: null,
+      pickupCode: null,
+      sourceUrl: null,
       deliveryAddress: "Мариуполь, Ленина 1",
-      productPreview: {
-        title: "Товар",
-        price: 2300,
-        imageUrl: null,
-        sourceUrl: "https://www.ozon.ru/product/test",
-        parserMode: "parsed",
-        parserMessage: "Карточка успешно распознана.",
-      },
+      deliveryDate: "2026-03-28",
+      deliveryTimeSlot: "12:00-15:00",
+      productPreview: null,
       attachment: null,
       crmSyncState: "pending",
       crmContactId: null,

@@ -204,6 +204,26 @@ function buildDealComments(order: OrderRecord, attachmentUrl: string | null) {
     `Адрес доставки/ПВЗ: ${order.deliveryAddress ?? order.pickupAddress}`,
   ];
 
+  if (order.relatedOrderNumbers.length > 0) {
+    lines.push(`Номера заказов для доставки: ${order.relatedOrderNumbers.join(", ")}`);
+  }
+
+  if (order.deliveryDate) {
+    lines.push(`Желаемая дата доставки: ${order.deliveryDate}`);
+  }
+
+  if (order.deliveryTimeSlot) {
+    lines.push(`Интервал доставки: ${order.deliveryTimeSlot}`);
+  }
+
+  if (order.trackingNumber) {
+    lines.push(`Трек-номер: ${order.trackingNumber}`);
+  }
+
+  if (order.pickupCode) {
+    lines.push(`Код получения: ${order.pickupCode}`);
+  }
+
   if (order.productPreview?.title) {
     lines.push(`Товар: ${order.productPreview.title}`);
   }
@@ -394,6 +414,11 @@ export function mapOrderToBitrixPayload(order: OrderRecord) {
     logistics: {
       sourceUrl: order.sourceUrl,
       deliveryAddress: order.deliveryAddress,
+      relatedOrderNumbers: order.relatedOrderNumbers,
+      deliveryDate: order.deliveryDate,
+      deliveryTimeSlot: order.deliveryTimeSlot,
+      trackingNumber: order.trackingNumber,
+      pickupCode: order.pickupCode,
     },
     pricing: {
       itemCount: order.itemCount,
