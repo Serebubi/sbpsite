@@ -314,12 +314,14 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label htmlFor={htmlFor} className="space-y-2">
-      <span className="block text-sm font-semibold text-[color:var(--foreground)]">{label}</span>
+    <div className="space-y-2">
+      <label htmlFor={htmlFor} className="block text-sm font-semibold text-[color:var(--foreground)]">
+        {label}
+      </label>
       {children}
       {hint ? <span className="block text-xs leading-6 text-[color:var(--muted)]">{hint}</span> : null}
       {error ? <span className="block text-xs font-semibold text-[color:var(--danger)]">{error}</span> : null}
-    </label>
+    </div>
   );
 }
 
@@ -374,7 +376,14 @@ function FileUploadCard({
     <div
       role="button"
       tabIndex={0}
-      onClick={openFilePicker}
+      onClick={(event) => {
+        if (event.target === inputRef.current) {
+          return;
+        }
+
+        event.preventDefault();
+        openFilePicker();
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -389,6 +398,7 @@ function FileUploadCard({
         type="file"
         accept={accept}
         className="sr-only"
+        onClick={(event) => event.stopPropagation()}
         onChange={(event) => onChange(event.target.files?.[0] ?? null)}
       />
       <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-2xl text-[color:var(--accent-strong)]">

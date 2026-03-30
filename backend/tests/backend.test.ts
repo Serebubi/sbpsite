@@ -106,6 +106,24 @@ describe("backend api", () => {
     expect(createResponse.body.order.status).toBe("CREATED");
   });
 
+  it("does not return an invalid-number error when item count is omitted", async () => {
+    const app = createApp();
+
+    const createResponse = await request(app)
+      .post("/orders/create")
+      .field("orderType", "pickup_standard")
+      .field("marketplace", "wildberries")
+      .field("firstName", "Сергей")
+      .field("lastName", "Иванов")
+      .field("phone", "+79997776655")
+      .field("totalAmount", "4300")
+      .field("sourceUrl", "https://www.wildberries.ru/catalog/123/detail.aspx");
+
+    expect(createResponse.status).toBe(400);
+    expect(createResponse.body.message).toContain("Проверьте заполнение формы");
+    expect(createResponse.body.message).not.toContain("заполнено некорректно");
+  });
+
   it("creates a home delivery request from existing order numbers", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
       const url = String(input);

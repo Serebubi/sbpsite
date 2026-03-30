@@ -16,7 +16,11 @@ import { previewMarketplaceLink } from "../services/parser-service.js";
 import { OrderService } from "../services/order-service.js";
 import { getAttachmentUrl, toAttachmentRecord, upload } from "../storage/attachment-store.js";
 
-function parseNumberField(rawValue: unknown, fieldLabel: string) {
+function parseOptionalNumberField(rawValue: unknown, fieldLabel: string) {
+  if (rawValue == null || rawValue === "") {
+    return undefined;
+  }
+
   const parsed = Number(rawValue);
   if (!Number.isFinite(parsed)) {
     throw new HttpError(400, `Поле "${fieldLabel}" заполнено некорректно.`);
@@ -68,8 +72,8 @@ export function createOrderRouter(orderService: OrderService) {
                 firstName: body.firstName,
                 lastName: body.lastName,
                 phone: body.phone,
-                itemCount: parseNumberField(body.itemCount, "Количество товаров"),
-                totalAmount: parseNumberField(body.totalAmount, "Общая сумма"),
+                itemCount: parseOptionalNumberField(body.itemCount, "Количество товаров"),
+                totalAmount: parseOptionalNumberField(body.totalAmount, "Общая сумма"),
                 sourceUrl: body.sourceUrl,
               }
             : body.marketplace === "cdek" || body.marketplace === "5post" || body.marketplace === "dpd" || body.marketplace === "avito"
@@ -90,7 +94,7 @@ export function createOrderRouter(orderService: OrderService) {
                     firstName: body.firstName,
                     lastName: body.lastName,
                     phone: body.phone,
-                    totalAmount: parseNumberField(body.totalAmount, "Общая сумма"),
+                    totalAmount: parseOptionalNumberField(body.totalAmount, "Общая сумма"),
                   }
               : body.marketplace === "bulky"
                 ? {
@@ -113,8 +117,8 @@ export function createOrderRouter(orderService: OrderService) {
                     senderName: body.senderName,
                     trackingNumber: body.trackingNumber,
                     pickupCode: body.pickupCode,
-                    itemCount: parseNumberField(body.itemCount, "Количество товаров"),
-                    totalAmount: parseNumberField(body.totalAmount, "Общая сумма"),
+                    itemCount: parseOptionalNumberField(body.itemCount, "Количество товаров"),
+                    totalAmount: parseOptionalNumberField(body.totalAmount, "Общая сумма"),
                   }
               : {
                   orderType: body.orderType,
@@ -122,8 +126,8 @@ export function createOrderRouter(orderService: OrderService) {
                   firstName: body.firstName,
                   lastName: body.lastName,
                   phone: body.phone,
-                  itemCount: parseNumberField(body.itemCount, "Количество товаров"),
-                  totalAmount: parseNumberField(body.totalAmount, "Общая сумма"),
+                  itemCount: parseOptionalNumberField(body.itemCount, "Количество товаров"),
+                  totalAmount: parseOptionalNumberField(body.totalAmount, "Общая сумма"),
                   trackingNumber: body.trackingNumber,
                   pickupCode: body.pickupCode,
                 };
