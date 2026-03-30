@@ -496,10 +496,10 @@ function ActionCard({
           ? "min-h-[210px] bg-[linear-gradient(135deg,#b61f8f_0%,#9227dd_100%)] p-8 text-white shadow-[0_24px_54px_rgba(146,39,221,0.24)] hover:-translate-y-1 hover:shadow-[0_28px_60px_rgba(146,39,221,0.28)] lg:row-span-2"
           : active
             ? softAccent
-              ? "border border-[rgba(196,46,160,0.2)] bg-[linear-gradient(135deg,#d458bf_0%,#b34be9_100%)] p-7 text-white shadow-[0_22px_42px_rgba(146,39,221,0.18)]"
+              ? "border border-[rgba(109,40,217,0.26)] bg-[linear-gradient(135deg,#8b4fd0_0%,#6d28d9_100%)] p-7 text-white shadow-[0_22px_42px_rgba(109,40,217,0.22)]"
               : "soft-card border border-[color:var(--line-strong)] p-7 shadow-[0_18px_36px_rgba(157,76,255,0.14)]"
             : softAccent
-              ? "border border-[rgba(196,46,160,0.16)] bg-[linear-gradient(135deg,#df71c7_0%,#be67ef_100%)] p-7 text-white shadow-[0_18px_38px_rgba(146,39,221,0.14)] hover:-translate-y-1 hover:shadow-[0_22px_44px_rgba(146,39,221,0.18)]"
+              ? "border border-[rgba(109,40,217,0.2)] bg-[linear-gradient(135deg,#9b5de5_0%,#7c3aed_100%)] p-7 text-white shadow-[0_18px_38px_rgba(109,40,217,0.16)] hover:-translate-y-1 hover:shadow-[0_22px_44px_rgba(109,40,217,0.2)]"
               : "soft-card p-7 hover:-translate-y-1"
       } ${className ?? ""}`}
     >
@@ -519,7 +519,6 @@ function ActionCard({
         {icon}
       </div>
       <div className={`${featured ? "mt-16" : "mt-8"} space-y-2`}>
-        <p className={`text-xs font-semibold uppercase tracking-[0.22em] ${featured ? "text-white/70" : softAccent ? "text-white/72" : "text-[color:var(--muted)]"}`}>{eyebrow}</p>
         <h2 className={`${featured ? "text-4xl" : "text-2xl"} font-[family-name:var(--font-display)] leading-none`}>{title}</h2>
         <p className={`${featured ? "text-white/78" : softAccent ? "text-white/82" : "text-[color:var(--muted)]"} text-sm leading-7`}>{description}</p>
       </div>
@@ -1062,6 +1061,7 @@ export function SuperboxApp() {
                 description={card.description}
                 icon={card.icon}
                 featured={card.featured}
+                accent={card.accent}
                 active={activeFlow === card.id}
                 className={placementClass}
                 onClick={() => openFlow(card.id)}
