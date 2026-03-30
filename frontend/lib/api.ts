@@ -97,6 +97,12 @@ export async function fetchOrder(orderNumber: string) {
   return parseResponse<{ order: OrderRecord }>(response);
 }
 
+export async function lookupOrder(query: string) {
+  const params = new URLSearchParams({ query });
+  const response = await fetch(`${API_BASE_URL}/orders/lookup?${params.toString()}`);
+  return parseResponse<{ orders: OrderRecord[] }>(response);
+}
+
 export async function cancelOrder(orderNumber: string) {
   const response = await fetch(`${API_BASE_URL}/orders/cancel`, {
     method: "POST",

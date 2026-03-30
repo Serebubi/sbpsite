@@ -191,6 +191,16 @@ export function createOrderRouter(orderService: OrderService) {
     }
   });
 
+  router.get("/lookup", async (request, response, next) => {
+    try {
+      const query = String(request.query.query ?? "");
+      const orders = await orderService.lookupOrder(query);
+      response.json({ orders });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/:id", async (request, response, next) => {
     try {
       const order = await orderService.getOrder(request.params.id);
