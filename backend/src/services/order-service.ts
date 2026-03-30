@@ -23,6 +23,10 @@ function appendEvent(order: OrderRecord, event: OrderRecord["events"][number]) {
   return [...order.events, event];
 }
 
+function normalizeLookupDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
 export class OrderService {
   constructor(
     private repository: FileOrderRepository,
@@ -154,6 +158,36 @@ export class OrderService {
 
       throw error;
     }
+  }
+
+  async lookupOrder(query: string) {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      throw new HttpError(400, "Введите номер заказа, трек-номер или телефон.");
+    }
+
+    const digits = normalizeLookupDigits(trimmed);
+    const orderByNumber = digits ? await this.repository.findByOrderNumber(digits) : null;
+    if (orderByNumber) {
+      return [await this.getOrder(orderByNumber.orderNumber)];
+    }
+
+    const orderByTracking = await this.repository.findByTrackingReference(trimmed);
+    if (orderByTracking) {
+      const order = orderByTracking.crmDealId ? await this.getOrder(orderByTracking.orderNumber) : orderByTracking;
+      return [order];
+    }
+
+    if (digits.length >= 10) {
+      const ordersByPhone = await this.repository.findAllByPhone(trimmed);
+      if (ordersByPhone.length > 0) {
+        return Promise.all(
+          ordersByPhone.map(async (order) => (order.crmDealId ? this.getOrder(order.orderNumber) : order)),
+        );
+      }
+    }
+
+    throw new HttpError(404, "Заказ не найден. Проверьте номер заказа, трек-номер или телефон.");
   }
 
   async cancelOrder(orderNumber: string) {

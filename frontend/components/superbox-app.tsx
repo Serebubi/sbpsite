@@ -29,7 +29,7 @@ import {
   type OrderRecord,
 } from "shared";
 
-import { cancelOrder, createHomeDeliveryOrder, createPickupOrder, fetchOrder } from "@/lib/api";
+import { cancelOrder, createHomeDeliveryOrder, createPickupOrder, fetchOrder, lookupOrder as lookupTrackedOrder } from "@/lib/api";
 
 import { FlowShell } from "./flow-shell";
 import { MarketplaceGrid } from "./marketplace-grid";
@@ -603,7 +603,7 @@ export function SuperboxApp() {
   const [pickupPaid, setPickupPaid] = useState(createPickupState);
   const [delivery, setDelivery] = useState(createDeliveryState);
   const [lookupNumber, setLookupNumber] = useState("");
-  const [lookupOrder, setLookupOrder] = useState<OrderRecord | null>(null);
+  const [lookupOrders, setLookupOrders] = useState<OrderRecord[]>([]);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [cancelNumber, setCancelNumber] = useState("");
   const [cancelCandidate, setCancelCandidate] = useState<OrderRecord | null>(null);
@@ -933,7 +933,12 @@ export function SuperboxApp() {
   };
 
   const submitLookup = async () => {
-    const parsed = numericIdSchema.safeParse(deferredLookupNumber);
+    const query = deferredLookupNumber.trim();
+    const parsed = {
+      success: query.length > 0,
+      error: { issues: [{ message: "Введите номер заказа, трек-номер или телефон." }] },
+      data: query,
+    };
     if (!parsed.success) {
       setLookupError(parsed.error.issues[0]?.message ?? "Введите корректный номер");
       return;
@@ -941,11 +946,11 @@ export function SuperboxApp() {
 
     startUiTransition(async () => {
       try {
-        const response = await fetchOrder(parsed.data);
-        setLookupOrder(response.order);
+        const response = await lookupTrackedOrder(parsed.data);
+        setLookupOrders(response.orders);
         setLookupError(null);
       } catch (error) {
-        setLookupOrder(null);
+        setLookupOrders([]);
         setLookupError(error instanceof Error ? error.message : "Заказ не найден");
       }
     });
@@ -1914,10 +1919,16 @@ export function SuperboxApp() {
           <Input
             id="lookup-order"
             autoFocus
-            inputMode="numeric"
+            inputMode="text"
             placeholder="ID заказа или +7 (___) ___-__-__"
             value={lookupNumber}
-            onChange={(event) => setLookupNumber(event.target.value.replace(/[^\d]/g, ""))}
+            onChange={(event) => setLookupNumber(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void submitLookup();
+              }
+            }}
             className="flex-1 border-0 bg-[color:var(--surface-subtle)] shadow-none"
           />
           <PrimaryButton onClick={() => void submitLookup()} disabled={pending} className="min-w-[160px]">
@@ -1934,8 +1945,23 @@ export function SuperboxApp() {
       </div>
       {lookupError ? <p className="mt-4 text-center text-sm font-semibold text-[color:var(--danger)]">{lookupError}</p> : null}
       <div className="mt-10 rounded-[36px] border border-white/70 bg-white/78 p-6 shadow-[0_24px_60px_rgba(84,58,128,0.08)]">
-        {lookupOrder ? (
-          <OrderSummaryCard order={lookupOrder} />
+        {lookupOrders.length > 0 ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[26px] bg-white/88 px-5 py-4 shadow-[0_10px_24px_rgba(84,58,128,0.05)]">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--muted)]">Результаты поиска</p>
+                <p className="mt-1 text-sm text-[color:var(--foreground)]">
+                  Найдено заказов: <span className="font-semibold">{lookupOrders.length}</span>
+                </p>
+              </div>
+              <div className="rounded-full bg-[color:var(--surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--accent-strong)]">
+                {lookupOrders[0]?.customer.phone}
+              </div>
+            </div>
+            {lookupOrders.map((order) => (
+              <OrderSummaryCard key={order.id} order={order} compact />
+            ))}
+          </div>
         ) : (
           <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
             <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--surface-soft)] text-3xl text-[color:var(--muted)]">
