@@ -28,6 +28,71 @@ interface BitrixDeal {
   CONTACT_ID?: string | number | null;
 }
 
+type BitrixDealFieldKey =
+  | "orderNumber"
+  | "orderType"
+  | "marketplace"
+  | "status"
+  | "pickupAddress"
+  | "customerName"
+  | "customerPhone"
+  | "itemCount"
+  | "totalAmount"
+  | "sourceUrl"
+  | "deliveryAddress"
+  | "relatedOrderNumbers"
+  | "deliveryDate"
+  | "deliveryTimeSlot"
+  | "trackingNumber"
+  | "shipmentNumber"
+  | "senderName"
+  | "pickupCode"
+  | "productTitle"
+  | "productAttachmentUrl"
+  | "attachmentUrl";
+
+type BitrixDealFieldMap = Partial<Record<BitrixDealFieldKey, string>>;
+
+interface BitrixDealFieldEntry {
+  key: BitrixDealFieldKey;
+  label: string;
+  value: number | string | null;
+}
+
+const bitrixDealFieldEnvMap = {
+  orderNumber: "BITRIX_DEAL_FIELD_ORDER_NUMBER",
+  orderType: "BITRIX_DEAL_FIELD_ORDER_TYPE",
+  marketplace: "BITRIX_DEAL_FIELD_MARKETPLACE",
+  status: "BITRIX_DEAL_FIELD_STATUS",
+  pickupAddress: "BITRIX_DEAL_FIELD_PICKUP_ADDRESS",
+  customerName: "BITRIX_DEAL_FIELD_CUSTOMER_NAME",
+  customerPhone: "BITRIX_DEAL_FIELD_CUSTOMER_PHONE",
+  itemCount: "BITRIX_DEAL_FIELD_ITEM_COUNT",
+  totalAmount: "BITRIX_DEAL_FIELD_TOTAL_AMOUNT",
+  sourceUrl: "BITRIX_DEAL_FIELD_SOURCE_URL",
+  deliveryAddress: "BITRIX_DEAL_FIELD_DELIVERY_ADDRESS",
+  relatedOrderNumbers: "BITRIX_DEAL_FIELD_RELATED_ORDER_NUMBERS",
+  deliveryDate: "BITRIX_DEAL_FIELD_DELIVERY_DATE",
+  deliveryTimeSlot: "BITRIX_DEAL_FIELD_DELIVERY_TIME_SLOT",
+  trackingNumber: "BITRIX_DEAL_FIELD_TRACKING_NUMBER",
+  shipmentNumber: "BITRIX_DEAL_FIELD_SHIPMENT_NUMBER",
+  senderName: "BITRIX_DEAL_FIELD_SENDER_NAME",
+  pickupCode: "BITRIX_DEAL_FIELD_PICKUP_CODE",
+  productTitle: "BITRIX_DEAL_FIELD_PRODUCT_TITLE",
+  productAttachmentUrl: "BITRIX_DEAL_FIELD_PRODUCT_ATTACHMENT_URL",
+  attachmentUrl: "BITRIX_DEAL_FIELD_ATTACHMENT_URL",
+} satisfies Record<BitrixDealFieldKey, string>;
+
+const defaultBitrixDealFieldMap: BitrixDealFieldMap = {
+  orderNumber: "UF_CRM_1774909222920",
+  orderType: "UF_CRM_1774909231523",
+  marketplace: "UF_CRM_1774909238633",
+  status: "UF_CRM_1774909246381",
+  pickupAddress: "UF_CRM_1774909256492",
+  itemCount: "UF_CRM_1774908835361",
+  totalAmount: "UF_CRM_1774908871627",
+};
+
 export interface BitrixSyncSnapshot {
   crmSyncState: OrderRecord["crmSyncState"];
   crmContactId: string | null;
@@ -191,64 +256,85 @@ function buildCustomerFullName(order: OrderRecord) {
   return parts.length > 0 ? parts.join(" ") : "Клиент";
 }
 
-function buildDealComments(order: OrderRecord, attachmentUrl: string | null, productAttachmentUrl: string | null) {
-  const lines = [
-    `Номер заказа: ${order.orderNumber}`,
-    `Тип заказа: ${buildOrderTypeLabel(order.orderType)}`,
-    `Маркетплейс: ${humanizeMarketplace(order.marketplace)}`,
-    `ФИО: ${buildCustomerFullName(order)}`,
-    `Телефон: ${order.customer.phone}`,
-    `Сумма: ${order.totalAmount != null ? `${order.totalAmount} RUB` : "не указана"}`,
-    `Количество: ${order.itemCount != null ? String(order.itemCount) : "не указано"}`,
-    `Ссылка на товар: ${order.sourceUrl ?? order.productPreview?.sourceUrl ?? "не указана"}`,
-    `Адрес доставки/ПВЗ: ${order.deliveryAddress ?? order.pickupAddress}`,
+function getConfiguredDealFieldMap(): BitrixDealFieldMap {
+  const fieldMap: BitrixDealFieldMap = { ...defaultBitrixDealFieldMap };
+
+  for (const [key, envName] of Object.entries(bitrixDealFieldEnvMap) as Array<[BitrixDealFieldKey, string]>) {
+    const fieldCode = process.env[envName]?.trim();
+    if (fieldCode) {
+      fieldMap[key] = fieldCode;
+    }
+  }
+
+  return fieldMap;
+}
+
+function buildDealFieldEntries(order: OrderRecord, attachmentUrl: string | null, productAttachmentUrl: string | null): BitrixDealFieldEntry[] {
+  return [
+    { key: "orderNumber", label: "Номер заказа", value: order.orderNumber },
+    { key: "orderType", label: "Тип заказа", value: buildOrderTypeLabel(order.orderType) },
+    { key: "marketplace", label: "Маркетплейс", value: humanizeMarketplace(order.marketplace) },
+    { key: "status", label: "Статус", value: order.status },
+    { key: "pickupAddress", label: "Адрес ПВЗ", value: order.pickupAddress },
+    { key: "customerName", label: "ФИО", value: buildCustomerFullName(order) },
+    { key: "customerPhone", label: "Телефон", value: order.customer.phone },
+    { key: "totalAmount", label: "Сумма", value: order.totalAmount },
+    { key: "itemCount", label: "Количество", value: order.itemCount },
+    {
+      key: "sourceUrl",
+      label: "Ссылка на товар",
+      value: order.sourceUrl ?? order.productPreview?.sourceUrl ?? null,
+    },
+    {
+      key: "deliveryAddress",
+      label: "Адрес доставки/ПВЗ",
+      value: order.deliveryAddress ?? order.pickupAddress,
+    },
+    {
+      key: "relatedOrderNumbers",
+      label: "Номера заказов для доставки",
+      value: order.relatedOrderNumbers.length > 0 ? order.relatedOrderNumbers.join(", ") : null,
+    },
+    { key: "deliveryDate", label: "Желаемая дата доставки", value: order.deliveryDate },
+    { key: "deliveryTimeSlot", label: "Интервал доставки", value: order.deliveryTimeSlot },
+    { key: "trackingNumber", label: "Трек-номер", value: order.trackingNumber },
+    { key: "shipmentNumber", label: "Номер отправления ИМ", value: order.shipmentNumber },
+    { key: "senderName", label: "Отправитель / интернет-магазин", value: order.senderName },
+    { key: "pickupCode", label: "Код получения", value: order.pickupCode },
+    { key: "productTitle", label: "Товар", value: order.productPreview?.title ?? null },
+    {
+      key: "productAttachmentUrl",
+      label: "Скриншот товара",
+      value: productAttachmentUrl ?? order.productAttachment?.filePath ?? null,
+    },
+    {
+      key: "attachmentUrl",
+      label: "Штрих-код / QR",
+      value: attachmentUrl ?? order.attachment?.filePath ?? null,
+    },
   ];
+}
 
-  if (order.relatedOrderNumbers.length > 0) {
-    lines.push(`Номера заказов для доставки: ${order.relatedOrderNumbers.join(", ")}`);
+function buildMappedDealFields(entries: BitrixDealFieldEntry[], fieldMap: BitrixDealFieldMap) {
+  const fields: Record<string, string | number> = {};
+
+  for (const entry of entries) {
+    const fieldCode = fieldMap[entry.key];
+    if (!fieldCode || entry.value == null) {
+      continue;
+    }
+
+    fields[fieldCode] = entry.value;
   }
 
-  if (order.deliveryDate) {
-    lines.push(`Желаемая дата доставки: ${order.deliveryDate}`);
-  }
+  return fields;
+}
 
-  if (order.deliveryTimeSlot) {
-    lines.push(`Интервал доставки: ${order.deliveryTimeSlot}`);
-  }
-
-  if (order.trackingNumber) {
-    lines.push(`Трек-номер: ${order.trackingNumber}`);
-  }
-
-  if (order.shipmentNumber) {
-    lines.push(`Номер отправления ИМ: ${order.shipmentNumber}`);
-  }
-
-  if (order.senderName) {
-    lines.push(`Отправитель / интернет-магазин: ${order.senderName}`);
-  }
-
-  if (order.pickupCode) {
-    lines.push(`Код получения: ${order.pickupCode}`);
-  }
-
-  if (order.productPreview?.title) {
-    lines.push(`Товар: ${order.productPreview.title}`);
-  }
-
-  if (productAttachmentUrl) {
-    lines.push(`Скриншот товара: ${productAttachmentUrl}`);
-  } else if (order.productAttachment) {
-    lines.push(`Скриншот товара: ${order.productAttachment.fileName} (${order.productAttachment.filePath})`);
-  }
-
-  if (attachmentUrl) {
-    lines.push(`Штрих-код / QR: ${attachmentUrl}`);
-  } else if (order.attachment) {
-    lines.push(`Штрих-код / QR: ${order.attachment.fileName} (${order.attachment.filePath})`);
-  }
-
-  return lines.join("\n");
+function buildDealComments(entries: BitrixDealFieldEntry[], fieldMap: BitrixDealFieldMap) {
+  return entries
+    .filter((entry) => entry.value != null && !fieldMap[entry.key])
+    .map((entry) => `${entry.label}: ${entry.value}`)
+    .join("\n");
 }
 
 function createSnapshot(input: {
@@ -274,6 +360,7 @@ export class BitrixService {
   constructor(
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly configuredWebhookBaseUrl = normalizeWebhookBaseUrl(config.bitrixWebhookUrl),
+    private readonly dealFieldMap: BitrixDealFieldMap = getConfiguredDealFieldMap(),
   ) {}
 
   private async getWebhookBaseUrl() {
@@ -390,6 +477,10 @@ export class BitrixService {
   }
 
   private async createDeal(order: OrderRecord, crmContactId: string | null, attachmentUrl: string | null, productAttachmentUrl: string | null) {
+    const dealEntries = buildDealFieldEntries(order, attachmentUrl, productAttachmentUrl);
+    const mappedDealFields = buildMappedDealFields(dealEntries, this.dealFieldMap);
+    const comments = buildDealComments(dealEntries, this.dealFieldMap);
+
     const dealId = await this.callMethod<string | number>("crm.deal.add", {
       fields: {
         TITLE: `SUPERBOX #${order.orderNumber}`,
@@ -400,7 +491,8 @@ export class BitrixService {
         ORIGIN_ID: order.orderNumber,
         CONTACT_ID: crmContactId,
         OPPORTUNITY: order.totalAmount ?? undefined,
-        COMMENTS: buildDealComments(order, attachmentUrl, productAttachmentUrl),
+        ...mappedDealFields,
+        COMMENTS: comments || undefined,
       },
     });
 

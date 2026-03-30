@@ -1,5 +1,5 @@
 import request from "supertest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
 import { mapOrderToBitrixPayload } from "../src/services/bitrix-service.js";
@@ -13,9 +13,25 @@ function createBitrixResponse(result: unknown) {
   } satisfies Partial<Response> as Response;
 }
 
+function readFormBody(body: RequestInit["body"] | null | undefined) {
+  if (body instanceof URLSearchParams) {
+    return body;
+  }
+
+  if (typeof body === "string") {
+    return new URLSearchParams(body);
+  }
+
+  throw new Error("Unexpected request body");
+}
+
 describe("backend api", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("returns fallback preview for unsupported domain", async () => {
@@ -104,6 +120,109 @@ describe("backend api", () => {
     expect(createResponse.body.order.crmSyncState).toBe("failed");
     expect(createResponse.body.order.crmDealId).toBeNull();
     expect(createResponse.body.order.status).toBe("CREATED");
+  });
+
+  it("maps configured order fields to Bitrix custom deal fields", async () => {
+    vi.stubEnv("BITRIX_DEAL_FIELD_ORDER_NUMBER", "UF_CRM_ORDER_NUMBER");
+    vi.stubEnv("BITRIX_DEAL_FIELD_CUSTOMER_NAME", "UF_CRM_CUSTOMER_NAME");
+    vi.stubEnv("BITRIX_DEAL_FIELD_CUSTOMER_PHONE", "UF_CRM_CUSTOMER_PHONE");
+    vi.stubEnv("BITRIX_DEAL_FIELD_SOURCE_URL", "UF_CRM_SOURCE_URL");
+
+    let dealPayload: URLSearchParams | null = null;
+
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+
+      if (url.includes("crm.duplicate.findbycomm")) {
+        return createBitrixResponse({});
+      }
+
+      if (url.includes("crm.contact.add")) {
+        return createBitrixResponse(321);
+      }
+
+      if (url.includes("crm.deal.add")) {
+        dealPayload = readFormBody(init?.body);
+        return createBitrixResponse(654);
+      }
+
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const app = createApp();
+
+    const createResponse = await request(app)
+      .post("/orders/create")
+      .field("orderType", "pickup_standard")
+      .field("marketplace", "wildberries")
+      .field("firstName", "Ivan")
+      .field("lastName", "Ivanov")
+      .field("phone", "+79997776655")
+      .field("itemCount", "2")
+      .field("totalAmount", "4300")
+      .field("sourceUrl", "https://www.wildberries.ru/catalog/123/detail.aspx");
+
+    expect(createResponse.status).toBe(201);
+    expect(dealPayload?.get("fields[UF_CRM_ORDER_NUMBER]")).toBe(createResponse.body.order.orderNumber);
+    expect(dealPayload?.get("fields[UF_CRM_CUSTOMER_NAME]")).toBe("Ivan Ivanov");
+    expect(dealPayload?.get("fields[UF_CRM_CUSTOMER_PHONE]")).toBe("+79997776655");
+    expect(dealPayload?.get("fields[UF_CRM_SOURCE_URL]")).toBe("https://www.wildberries.ru/catalog/123/detail.aspx");
+    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("+79997776655");
+    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("https://www.wildberries.ru/catalog/123/detail.aspx");
+  });
+
+  it("uses default Bitrix fields for item count and total amount", async () => {
+    let dealPayload: URLSearchParams | null = null;
+
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+
+      if (url.includes("crm.duplicate.findbycomm")) {
+        return createBitrixResponse({});
+      }
+
+      if (url.includes("crm.contact.add")) {
+        return createBitrixResponse(321);
+      }
+
+      if (url.includes("crm.deal.add")) {
+        dealPayload = readFormBody(init?.body);
+        return createBitrixResponse(654);
+      }
+
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const app = createApp();
+
+    const createResponse = await request(app)
+      .post("/orders/create")
+      .field("orderType", "pickup_standard")
+      .field("marketplace", "wildberries")
+      .field("firstName", "Ivan")
+      .field("lastName", "Ivanov")
+      .field("phone", "+79997776655")
+      .field("itemCount", "3")
+      .field("totalAmount", "5200")
+      .field("sourceUrl", "https://www.wildberries.ru/catalog/123/detail.aspx");
+
+    expect(createResponse.status).toBe(201);
+    expect(dealPayload?.get("fields[UF_CRM_1774909222920]")).toBe(createResponse.body.order.orderNumber);
+    expect(dealPayload?.get("fields[UF_CRM_1774909231523]")).toBe("Самовывоз");
+    expect(dealPayload?.get("fields[UF_CRM_1774909238633]")).toBe("WILDBERRIES");
+    expect(dealPayload?.get("fields[UF_CRM_1774909246381]")).toBe("CREATED");
+    expect(dealPayload?.get("fields[UF_CRM_1774909256492]")).toBe(createResponse.body.order.pickupAddress);
+    expect(dealPayload?.get("fields[UF_CRM_1774908835361]")).toBe("3");
+    expect(dealPayload?.get("fields[UF_CRM_1774908871627]")).toBe("5200");
+    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Номер заказа:");
+    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Тип заказа:");
+    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Маркетплейс:");
+    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Статус:");
+    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Адрес ПВЗ:");
+    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Количество: 3");
+    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Сумма: 5200");
   });
 
   it("does not return an invalid-number error when item count is omitted", async () => {
