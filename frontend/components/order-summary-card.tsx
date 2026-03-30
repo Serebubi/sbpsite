@@ -75,7 +75,7 @@ export function OrderSummaryCard({ order, compact = false }: OrderSummaryCardPro
           </dt>
           <dd className="mt-2 text-sm font-semibold text-[color:var(--foreground)]">
             {isTrackingPickupOrder
-              ? order.trackingNumber ?? "Уточняется"
+              ? order.trackingNumber ?? order.shipmentNumber ?? "Уточняется"
               : isHomeDelivery
                 ? order.deliveryDate ?? "Уточняется"
                 : order.totalAmount

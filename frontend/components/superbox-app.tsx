@@ -57,9 +57,12 @@ type PickupState = {
   itemCount: string;
   totalAmount: string;
   trackingNumber: string;
+  shipmentNumber: string;
+  senderName: string;
   pickupCode: string;
   sourceUrl: string;
   attachment: File | null;
+  productAttachment: File | null;
   result: OrderRecord | null;
   errors: Record<string, string>;
 };
@@ -83,8 +86,8 @@ type PaidFieldCopy = {
 };
 
 const defaultPaidFieldCopy: PaidFieldCopy = {
-  itemCountLabel: "Количество",
-  totalAmountLabel: "Итоговая цена",
+  itemCountLabel: "Количество товаров",
+  totalAmountLabel: "Итоговая цена всех товаров",
   attachmentLabel: "QR / штрих-код заказа",
   attachmentHint: "PNG, JPG или PDF до 10 MB.",
   attachmentRequiredError: "Прикрепите QR или штрих-код.",
@@ -120,25 +123,32 @@ const paidFieldCopyByMarketplace: Partial<Record<MarketplaceId | SpecialPickupId
     attachmentRequiredError: "",
   },
   goldapple: {
-    itemCountLabel: "Количество",
-    totalAmountLabel: "Итоговая цена",
+    itemCountLabel: "Количество товаров",
+    totalAmountLabel: "Итоговая цена всех товаров",
     attachmentLabel: "Скриншот заказа",
     attachmentHint: "PNG, JPG или PDF до 10 MB.",
     attachmentRequiredError: "Прикрепите скриншот заказа.",
   },
   letual: {
-    itemCountLabel: "Количество",
-    totalAmountLabel: "Итоговая цена",
+    itemCountLabel: "Количество товаров",
+    totalAmountLabel: "Итоговая цена всех товаров",
     attachmentLabel: "Скриншот заказа",
     attachmentHint: "PNG, JPG или PDF до 10 MB.",
     attachmentRequiredError: "Прикрепите скриншот заказа.",
   },
   detmir: {
-    itemCountLabel: "Количество",
-    totalAmountLabel: "Итоговая цена",
+    itemCountLabel: "Количество товаров",
+    totalAmountLabel: "Итоговая цена всех товаров",
     attachmentLabel: "Скриншот заказа",
     attachmentHint: "PNG, JPG или PDF до 10 MB.",
     attachmentRequiredError: "Прикрепите скриншот заказа.",
+  },
+  courier: {
+    itemCountLabel: "Количество товаров",
+    totalAmountLabel: "Итоговая цена всех товаров",
+    attachmentLabel: "QR / штрих-код заказа / скриншот товара или груза",
+    attachmentHint: "PNG, JPG или PDF до 10 MB.",
+    attachmentRequiredError: "Прикрепите QR, штрих-код или скриншот товара.",
   },
 };
 
@@ -248,9 +258,12 @@ function createPickupState(): PickupState {
     itemCount: "",
     totalAmount: "",
     trackingNumber: "",
+    shipmentNumber: "",
+    senderName: "",
     pickupCode: "",
     sourceUrl: "",
     attachment: null,
+    productAttachment: null,
     result: null,
     errors: {},
   };
@@ -294,9 +307,9 @@ function Field({
   error,
   children,
 }: {
-  label: string;
+  label: ReactNode;
   htmlFor: string;
-  hint?: string;
+  hint?: ReactNode;
   error?: string;
   children: ReactNode;
 }) {
@@ -309,6 +322,8 @@ function Field({
     </label>
   );
 }
+
+const fieldStateLabelClass = "whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--accent-strong)]";
 
 function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
@@ -791,6 +806,12 @@ export function SuperboxApp() {
   const submitPickup = async () => {
     const paidFieldCopy = getPaidFieldCopy(activePickup.marketplace);
     const isCdekPaid = activeFlow === "pickup_paid" && activePickup.marketplace === "cdek";
+    const isDetmirPaid = activeFlow === "pickup_paid" && activePickup.marketplace === "detmir";
+    const isGoldapplePaid = activeFlow === "pickup_paid" && activePickup.marketplace === "goldapple";
+    const isLetualPaid = activeFlow === "pickup_paid" && activePickup.marketplace === "letual";
+    const isWildberriesPremiumPaid = activeFlow === "pickup_paid" && activePickup.marketplace === "wildberries_premium";
+    const isCourierPaid = activeFlow === "pickup_paid" && activePickup.marketplace === "courier";
+    const isBulkyPaid = activeFlow === "pickup_paid" && activePickup.marketplace === "bulky";
     const isFullNameTrackingPaid =
       activeFlow === "pickup_paid" &&
       (activePickup.marketplace === "5post" || activePickup.marketplace === "dpd" || activePickup.marketplace === "avito");
@@ -811,13 +832,15 @@ export function SuperboxApp() {
         : createPaidPickupOrderSchema.safeParse({
             orderType: activeFlow,
             marketplace: activePickup.marketplace,
-            firstName: isFullNameTrackingPaid ? fullNameTrackingCustomer.firstName : activePickup.firstName,
-            lastName: isFullNameTrackingPaid ? fullNameTrackingCustomer.lastName : activePickup.lastName,
+            firstName: isFullNameTrackingPaid || isWildberriesPremiumPaid ? fullNameTrackingCustomer.firstName : activePickup.firstName,
+            lastName: isFullNameTrackingPaid || isWildberriesPremiumPaid ? fullNameTrackingCustomer.lastName : activePickup.lastName,
             phone: activePickup.phone,
-            itemCount: usesTrackingPickupFields ? undefined : Number(activePickup.itemCount),
-            totalAmount: usesTrackingPickupFields ? undefined : Number(activePickup.totalAmount),
-            trackingNumber: usesTrackingPickupFields ? activePickup.trackingNumber : undefined,
-            pickupCode: usesTrackingPickupFields ? activePickup.pickupCode : undefined,
+            itemCount: usesTrackingPickupFields || isWildberriesPremiumPaid || isBulkyPaid ? undefined : Number(activePickup.itemCount),
+            totalAmount: usesTrackingPickupFields || isBulkyPaid ? undefined : Number(activePickup.totalAmount),
+            trackingNumber: usesTrackingPickupFields || isDetmirPaid || isGoldapplePaid || isLetualPaid || isCourierPaid || isBulkyPaid ? activePickup.trackingNumber : undefined,
+            shipmentNumber: isCdekPaid ? activePickup.shipmentNumber : undefined,
+            senderName: isCourierPaid || isBulkyPaid ? activePickup.senderName : undefined,
+            pickupCode: usesTrackingPickupFields || isDetmirPaid || isCourierPaid || isBulkyPaid ? activePickup.pickupCode : undefined,
           });
 
     const nextErrors: Record<string, string> = {};
@@ -828,7 +851,13 @@ export function SuperboxApp() {
       nextErrors.fullName = "Укажите ФИО";
       delete nextErrors.firstName;
     }
+    if (isWildberriesPremiumPaid && (nextErrors.firstName || nextErrors.lastName)) {
+      nextErrors.fullName = "Укажите ФИО";
+      delete nextErrors.firstName;
+      delete nextErrors.lastName;
+    }
     if (activeFlow === "pickup_paid" && !usesTrackingPickupFields && !activePickup.attachment) nextErrors.attachment = paidFieldCopy.attachmentRequiredError;
+    if (isWildberriesPremiumPaid && !activePickup.productAttachment) nextErrors.productAttachment = "Прикрепите скриншот товара.";
     if (Object.keys(nextErrors).length > 0) {
       updatePickup({ errors: nextErrors });
       return;
@@ -839,15 +868,18 @@ export function SuperboxApp() {
         const response = await createPickupOrder({
           orderType: activeFlow as "pickup_standard" | "pickup_paid",
           marketplace: activePickup.marketplace,
-          firstName: isFullNameTrackingPaid ? fullNameTrackingCustomer.firstName : activePickup.firstName,
-          lastName: isFullNameTrackingPaid ? fullNameTrackingCustomer.lastName : activePickup.lastName,
+          firstName: isFullNameTrackingPaid || isWildberriesPremiumPaid ? fullNameTrackingCustomer.firstName : activePickup.firstName,
+          lastName: isFullNameTrackingPaid || isWildberriesPremiumPaid ? fullNameTrackingCustomer.lastName : activePickup.lastName,
           phone: activePickup.phone,
-          itemCount: usesTrackingPickupFields ? undefined : activePickup.itemCount,
-          totalAmount: usesTrackingPickupFields ? undefined : activePickup.totalAmount,
-          trackingNumber: usesTrackingPickupFields ? activePickup.trackingNumber : undefined,
-          pickupCode: usesTrackingPickupFields ? activePickup.pickupCode : undefined,
+          itemCount: usesTrackingPickupFields || isWildberriesPremiumPaid || isBulkyPaid ? undefined : activePickup.itemCount,
+          totalAmount: usesTrackingPickupFields || isBulkyPaid ? undefined : activePickup.totalAmount,
+          trackingNumber: usesTrackingPickupFields || isDetmirPaid || isGoldapplePaid || isLetualPaid || isCourierPaid || isBulkyPaid ? activePickup.trackingNumber : undefined,
+          shipmentNumber: isCdekPaid ? activePickup.shipmentNumber : undefined,
+          senderName: isCourierPaid || isBulkyPaid ? activePickup.senderName : undefined,
+          pickupCode: usesTrackingPickupFields || isDetmirPaid || isCourierPaid || isBulkyPaid ? activePickup.pickupCode : undefined,
           sourceUrl: activeFlow === "pickup_standard" ? activePickup.sourceUrl : undefined,
-          attachment: activeFlow === "pickup_paid" && !isCdekPaid ? activePickup.attachment ?? undefined : undefined,
+          attachment: activeFlow === "pickup_paid" ? activePickup.attachment ?? undefined : undefined,
+          productAttachment: activeFlow === "pickup_paid" && isWildberriesPremiumPaid ? activePickup.productAttachment ?? undefined : undefined,
         });
         setActivePickup((current) => ({ ...current, step: 3, result: response.order, errors: {} }));
       } catch (error) {
@@ -1054,6 +1086,12 @@ export function SuperboxApp() {
   const renderPickupFlow = () => {
     const paid = activeFlow === "pickup_paid";
     const isCdekPaid = paid && activePickup.marketplace === "cdek";
+    const isDetmirPaid = paid && activePickup.marketplace === "detmir";
+    const isGoldapplePaid = paid && activePickup.marketplace === "goldapple";
+    const isLetualPaid = paid && activePickup.marketplace === "letual";
+    const isWildberriesPremiumPaid = paid && activePickup.marketplace === "wildberries_premium";
+    const isCourierPaid = paid && activePickup.marketplace === "courier";
+    const isBulkyPaid = paid && activePickup.marketplace === "bulky";
     const isFullNameTrackingPaid =
       paid && (activePickup.marketplace === "5post" || activePickup.marketplace === "dpd" || activePickup.marketplace === "avito");
     const usesTrackingPickupFields = isCdekPaid || isFullNameTrackingPaid;
@@ -1145,7 +1183,7 @@ export function SuperboxApp() {
           description={
             paid
               ? isCdekPaid
-                ? "Укажите имя, фамилию, телефон, трек-номер и код получения. Для СДЭК вложение не требуется."
+                ? "Укажите имя, фамилию, телефон и заполните трек-номер или номер отправления ИМ. Код получения и скриншот отправления можно добавить по желанию."
                 : isFullNameTrackingPaid
                   ? "Укажите ФИО, телефон, трек-номер и код получения. Скриншот отправления можно приложить по желанию."
                 : "Заполните данные клиента и загрузите QR или штрих-код. Мы сохраним заказ отдельным сценарием без смешивания со стандартной доставкой."
@@ -1166,7 +1204,7 @@ export function SuperboxApp() {
             <div className="rounded-[24px] bg-[color:var(--surface-subtle)] px-5 py-4 text-sm leading-7 text-[color:var(--muted)]">
               Выбран маркетплейс: <span className="font-semibold text-[color:var(--foreground)]">{currentMarketplace}</span>
             </div>
-            {isFullNameTrackingPaid ? (
+            {isFullNameTrackingPaid || isWildberriesPremiumPaid ? (
               <Field label="ФИО" htmlFor={`${activeFlow}-fullName`} error={activePickup.errors.fullName}>
                 <Input id={`${activeFlow}-fullName`} autoFocus placeholder="Введите ФИО" value={activePickup.fullName} onChange={(event) => updatePickup({ fullName: event.target.value })} />
               </Field>
@@ -1185,25 +1223,127 @@ export function SuperboxApp() {
               <Input id={`${activeFlow}-phone`} placeholder="+7 (___) ___-__-__" value={activePickup.phone} onChange={(event) => updatePickup({ phone: event.target.value })} />
             </Field>
 
-            {isCdekPaid ? (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Укажите трек-номер" htmlFor={`${activeFlow}-trackingNumber`} error={activePickup.errors.trackingNumber}>
-                  <Input
-                    id={`${activeFlow}-trackingNumber`}
-                    placeholder="Введите трек-номер"
-                    value={activePickup.trackingNumber}
-                    onChange={(event) => updatePickup({ trackingNumber: event.target.value })}
+            {isWildberriesPremiumPaid ? (
+              <>
+                <div className="rounded-[24px] border border-[color:rgba(196,46,160,0.14)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,244,255,0.96))] px-5 py-4 text-center text-sm font-semibold leading-7 text-[color:var(--foreground)] shadow-[0_12px_28px_rgba(84,58,128,0.06)]">
+                  Только для товаров стоимостью более 20000 р. Доставка оплачивается по тарифной сетке по весу товаров!
+                </div>
+
+                <Field label="Укажите стоимость товара" htmlFor={`${activeFlow}-amount`} error={activePickup.errors.totalAmount}>
+                  <InputWithSuffix id={`${activeFlow}-amount`} type="number" min="20001" suffix="₽" value={activePickup.totalAmount} onChange={(event) => updatePickup({ totalAmount: event.target.value })} />
+                </Field>
+
+                <Field label="Прикрепите скриншот товара" htmlFor={`${activeFlow}-productAttachment`} error={activePickup.errors.productAttachment}>
+                  <FileUploadCard
+                    id={`${activeFlow}-productAttachment`}
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    file={activePickup.productAttachment}
+                    onChange={(file) => updatePickup({ productAttachment: file })}
                   />
                 </Field>
-                <Field label="Код получения" htmlFor={`${activeFlow}-pickupCode`} error={activePickup.errors.pickupCode}>
-                  <Input
-                    id={`${activeFlow}-pickupCode`}
-                    placeholder="Введите код получения"
-                    value={activePickup.pickupCode}
-                    onChange={(event) => updatePickup({ pickupCode: event.target.value })}
+
+                <Field
+                  label="Штрих-код или QR код для получения (Сделайте скриншот и приложите его)"
+                  htmlFor={`${activeFlow}-attachment`}
+                  error={activePickup.errors.attachment}
+                >
+                  <FileUploadCard
+                    id={`${activeFlow}-attachment`}
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    file={activePickup.attachment}
+                    onChange={(file) => updatePickup({ attachment: file })}
                   />
                 </Field>
-              </div>
+              </>
+            ) : isCdekPaid ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-start">
+                  <Field
+                    label="Укажите трек-номер"
+                    htmlFor={`${activeFlow}-trackingNumber`}
+                    hint="11 цифр, не больше, не меньше"
+                    error={activePickup.errors.trackingNumber}
+                  >
+                    <Input
+                      id={`${activeFlow}-trackingNumber`}
+                      inputMode="numeric"
+                      maxLength={11}
+                      pattern="[0-9]*"
+                      placeholder="Введите трек-номер"
+                      value={activePickup.trackingNumber}
+                      onChange={(event) => updatePickup({ trackingNumber: event.target.value.replace(/\D/g, "").slice(0, 11) })}
+                    />
+                  </Field>
+                  <div className="flex items-center justify-center pt-0 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)] sm:pt-11">
+                    или
+                  </div>
+                  <Field
+                    label="Номер отправления ИМ"
+                    htmlFor={`${activeFlow}-shipmentNumber`}
+                    hint={
+                      <>
+                        <span className="block font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Без маски</span>
+                        <span className="block">
+                          Данное поле заполняется, если нет трек-номера СДЭК в формате "10243258828", есть только номер отправления интернет-магазина, например зарубежные посылки "CN0016355297RU9".
+                        </span>
+                      </>
+                    }
+                    error={activePickup.errors.shipmentNumber}
+                  >
+                    <Input
+                      id={`${activeFlow}-shipmentNumber`}
+                      placeholder="Введите номер отправления ИМ"
+                      value={activePickup.shipmentNumber}
+                      onChange={(event) => updatePickup({ shipmentNumber: event.target.value })}
+                    />
+                  </Field>
+                </div>
+
+                <p className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
+                  Обязательно одно из двух полей
+                </p>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label={
+                      <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span>Код получения</span>
+                        <span className={fieldStateLabelClass}>
+                          Не обязательное поле
+                        </span>
+                      </span>
+                    }
+                    htmlFor={`${activeFlow}-pickupCode`}
+                    hint={<span className="block">Если подключен СДЭК ID</span>}
+                    error={activePickup.errors.pickupCode}
+                  >
+                    <Input
+                      id={`${activeFlow}-pickupCode`}
+                      placeholder="Введите код получения"
+                      value={activePickup.pickupCode}
+                      onChange={(event) => updatePickup({ pickupCode: event.target.value })}
+                    />
+                  </Field>
+                </div>
+
+                <Field
+                  label={
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span>Скриншот отправления</span>
+                      <span className="text-sm font-semibold text-[color:var(--accent-strong)]">Можно пропустить</span>
+                    </span>
+                  }
+                  htmlFor={`${activeFlow}-attachment`}
+                  error={activePickup.errors.attachment}
+                >
+                  <FileUploadCard
+                    id={`${activeFlow}-attachment`}
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    file={activePickup.attachment}
+                    onChange={(file) => updatePickup({ attachment: file })}
+                  />
+                </Field>
+              </>
             ) : isFullNameTrackingPaid ? (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -1236,57 +1376,313 @@ export function SuperboxApp() {
               </>
             ) : paid ? (
               <>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field
-                    label={paidFieldCopy.itemCountLabel}
-                    htmlFor={`${activeFlow}-count`}
-                    hint="Введите общее количество товаров для получения"
-                    error={activePickup.errors.itemCount}
-                  >
-                    <InputWithSuffix id={`${activeFlow}-count`} type="number" min="1" suffix="шт." value={activePickup.itemCount} onChange={(event) => updatePickup({ itemCount: event.target.value })} />
-                  </Field>
-                  <Field
-                    label={paidFieldCopy.totalAmountLabel}
-                    htmlFor={`${activeFlow}-amount`}
-                    hint="Укажите, пожалуйста, общую сумму всех товаров в заказе"
-                    error={activePickup.errors.totalAmount}
-                  >
-                    <InputWithSuffix id={`${activeFlow}-amount`} type="number" min="1" suffix="₽" value={activePickup.totalAmount} onChange={(event) => updatePickup({ totalAmount: event.target.value })} />
-                  </Field>
-                </div>
-
-                <Field label={paidFieldCopy.attachmentLabel} htmlFor={`${activeFlow}-attachment`} hint={paidFieldCopy.attachmentHint} error={activePickup.errors.attachment}>
-                  <FileUploadCard
-                    id={`${activeFlow}-attachment`}
-                    accept=".jpg,.jpeg,.png,.pdf"
-                    file={activePickup.attachment}
-                    onChange={(file) => updatePickup({ attachment: file })}
-                  />
-                  <div className="hidden">
-                    <input
-                      id={`${activeFlow}-attachment-hidden`}
-                      type="file"
-                      accept=".jpg,.jpeg,.png,.pdf"
-                      className="sr-only"
-                      onChange={(event) => updatePickup({ attachment: event.target.files?.[0] ?? null })}
-                    />
-                    <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-2xl text-[color:var(--accent-strong)]">
-                      ↑
-                    </span>
-                    <span className="mt-5 text-lg font-semibold text-[color:var(--foreground)]">
-                      {activePickup.attachment ? activePickup.attachment.name : "Нажмите для загрузки"}
-                    </span>
-                    <span className="mt-2 text-sm text-[color:var(--muted)]">
-                      {activePickup.attachment ? "Файл прикреплён. Можно продолжать." : "Поддерживаются изображения и PDF."}
-                    </span>
+                {isDetmirPaid ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field
+                      label={
+                        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span>Номер заказа</span>
+                          <span className={fieldStateLabelClass}>
+                            Обязательное поле
+                          </span>
+                        </span>
+                      }
+                      htmlFor={`${activeFlow}-trackingNumber`}
+                      error={activePickup.errors.trackingNumber}
+                    >
+                      <Input
+                        id={`${activeFlow}-trackingNumber`}
+                        placeholder="Введите номер заказа"
+                        value={activePickup.trackingNumber}
+                        onChange={(event) => updatePickup({ trackingNumber: event.target.value })}
+                      />
+                    </Field>
+                    <Field
+                      label={
+                        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span>Код получения</span>
+                          <span className={fieldStateLabelClass}>
+                            Не обязательное поле
+                          </span>
+                        </span>
+                      }
+                      htmlFor={`${activeFlow}-pickupCode`}
+                      error={activePickup.errors.pickupCode}
+                    >
+                      <Input
+                        id={`${activeFlow}-pickupCode`}
+                        placeholder="Введите код получения"
+                        value={activePickup.pickupCode}
+                        onChange={(event) => updatePickup({ pickupCode: event.target.value })}
+                      />
+                    </Field>
                   </div>
-                </Field>
+                ) : null}
+
+                {isGoldapplePaid ? (
+                  <div className="mx-auto max-w-[430px]">
+                    <Field
+                      label={
+                        <span className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center sm:justify-start sm:text-left">
+                          <span>Номер заказа</span>
+                          <span className={fieldStateLabelClass}>
+                            Обязательное поле
+                          </span>
+                        </span>
+                      }
+                      htmlFor={`${activeFlow}-trackingNumber`}
+                      error={activePickup.errors.trackingNumber}
+                    >
+                      <Input
+                        id={`${activeFlow}-trackingNumber`}
+                        placeholder="Введите номер заказа"
+                        value={activePickup.trackingNumber}
+                        onChange={(event) => updatePickup({ trackingNumber: event.target.value })}
+                      />
+                    </Field>
+                  </div>
+                ) : null}
+
+                {isLetualPaid ? (
+                  <div className="mx-auto max-w-[430px]">
+                    <Field
+                      label={
+                        <span className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center sm:justify-start sm:text-left">
+                          <span>Номер заказа</span>
+                          <span className={fieldStateLabelClass}>
+                            Обязательное поле
+                          </span>
+                        </span>
+                      }
+                      htmlFor={`${activeFlow}-trackingNumber`}
+                      error={activePickup.errors.trackingNumber}
+                    >
+                      <Input
+                        id={`${activeFlow}-trackingNumber`}
+                        placeholder="Введите номер заказа"
+                        value={activePickup.trackingNumber}
+                        onChange={(event) => updatePickup({ trackingNumber: event.target.value })}
+                      />
+                    </Field>
+                  </div>
+                ) : null}
+
+                {isCourierPaid ? (
+                  <>
+                    <Field
+                      label={
+                        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span>Название отправителя или интернет-магазина</span>
+                          <span className={fieldStateLabelClass}>
+                            Обязательное поле
+                          </span>
+                        </span>
+                      }
+                      htmlFor={`${activeFlow}-senderName`}
+                      error={activePickup.errors.senderName}
+                    >
+                      <Input
+                        id={`${activeFlow}-senderName`}
+                        placeholder="Например, Ривгош, ИП Петров, ООО “Сарма”"
+                        value={activePickup.senderName}
+                        onChange={(event) => updatePickup({ senderName: event.target.value })}
+                      />
+                    </Field>
+
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <Field
+                        label={
+                          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span>Номер заказа</span>
+                            <span className={fieldStateLabelClass}>
+                              Не обязательно
+                            </span>
+                          </span>
+                        }
+                        htmlFor={`${activeFlow}-trackingNumber`}
+                        error={activePickup.errors.trackingNumber}
+                      >
+                        <Input
+                          id={`${activeFlow}-trackingNumber`}
+                          placeholder="Введите номер заказа"
+                          value={activePickup.trackingNumber}
+                          onChange={(event) => updatePickup({ trackingNumber: event.target.value })}
+                        />
+                      </Field>
+                      <Field
+                        label={
+                          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span>Код получения</span>
+                            <span className={fieldStateLabelClass}>
+                              Не обязательно
+                            </span>
+                          </span>
+                        }
+                        htmlFor={`${activeFlow}-pickupCode`}
+                        error={activePickup.errors.pickupCode}
+                      >
+                        <Input
+                          id={`${activeFlow}-pickupCode`}
+                          placeholder="Введите код получения"
+                          value={activePickup.pickupCode}
+                          onChange={(event) => updatePickup({ pickupCode: event.target.value })}
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field
+                        label={paidFieldCopy.itemCountLabel}
+                        htmlFor={`${activeFlow}-count`}
+                        hint="Введите общее количество товаров для получения"
+                        error={activePickup.errors.itemCount}
+                      >
+                        <InputWithSuffix id={`${activeFlow}-count`} type="number" min="1" suffix="шт." value={activePickup.itemCount} onChange={(event) => updatePickup({ itemCount: event.target.value })} />
+                      </Field>
+                      <Field
+                        label={paidFieldCopy.totalAmountLabel}
+                        htmlFor={`${activeFlow}-amount`}
+                        hint="Укажите, пожалуйста, общую сумму всех товаров в заказе"
+                        error={activePickup.errors.totalAmount}
+                      >
+                        <InputWithSuffix id={`${activeFlow}-amount`} type="number" min="1" suffix="₽" value={activePickup.totalAmount} onChange={(event) => updatePickup({ totalAmount: event.target.value })} />
+                      </Field>
+                    </div>
+
+                    <Field label={paidFieldCopy.attachmentLabel} htmlFor={`${activeFlow}-attachment`} hint={paidFieldCopy.attachmentHint} error={activePickup.errors.attachment}>
+                      <FileUploadCard
+                        id={`${activeFlow}-attachment`}
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        file={activePickup.attachment}
+                        onChange={(file) => updatePickup({ attachment: file })}
+                      />
+                    </Field>
+                  </>
+                ) : isBulkyPaid ? (
+                  <>
+                    <Field
+                      label="Название отправителя или интернет-магазина"
+                      htmlFor={`${activeFlow}-senderName`}
+                      error={activePickup.errors.senderName}
+                    >
+                      <Input
+                        id={`${activeFlow}-senderName`}
+                        placeholder="Например, OZON, WB, ООО “Сарма”, ИП Петров"
+                        value={activePickup.senderName}
+                        onChange={(event) => updatePickup({ senderName: event.target.value })}
+                      />
+                    </Field>
+
+                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                      <Field
+                        label={
+                          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span>Номер заказа</span>
+                            <span className={fieldStateLabelClass}>
+                              Не обязательно
+                            </span>
+                          </span>
+                        }
+                        htmlFor={`${activeFlow}-trackingNumber`}
+                        error={activePickup.errors.trackingNumber}
+                      >
+                        <Input
+                          id={`${activeFlow}-trackingNumber`}
+                          placeholder="Введите номер заказа"
+                          value={activePickup.trackingNumber}
+                          onChange={(event) => updatePickup({ trackingNumber: event.target.value })}
+                        />
+                      </Field>
+                      <Field
+                        label={
+                          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span>Код получения</span>
+                            <span className={fieldStateLabelClass}>
+                              Не обязательно
+                            </span>
+                          </span>
+                        }
+                        htmlFor={`${activeFlow}-pickupCode`}
+                        error={activePickup.errors.pickupCode}
+                      >
+                        <Input
+                          id={`${activeFlow}-pickupCode`}
+                          placeholder="Введите код получения"
+                          value={activePickup.pickupCode}
+                          onChange={(event) => updatePickup({ pickupCode: event.target.value })}
+                        />
+                      </Field>
+                    </div>
+
+                    <Field
+                      label="QR / штрих-код заказа / скриншоты товаров / грузов"
+                      htmlFor={`${activeFlow}-attachment`}
+                      hint={paidFieldCopy.attachmentHint}
+                      error={activePickup.errors.attachment}
+                    >
+                      <FileUploadCard
+                        id={`${activeFlow}-attachment`}
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        file={activePickup.attachment}
+                        onChange={(file) => updatePickup({ attachment: file })}
+                      />
+                    </Field>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field
+                        label={paidFieldCopy.itemCountLabel}
+                        htmlFor={`${activeFlow}-count`}
+                        hint="Введите общее количество товаров для получения"
+                        error={activePickup.errors.itemCount}
+                      >
+                        <InputWithSuffix id={`${activeFlow}-count`} type="number" min="1" suffix="шт." value={activePickup.itemCount} onChange={(event) => updatePickup({ itemCount: event.target.value })} />
+                      </Field>
+                      <Field
+                        label={paidFieldCopy.totalAmountLabel}
+                        htmlFor={`${activeFlow}-amount`}
+                        hint="Укажите, пожалуйста, общую сумму всех товаров в заказе"
+                        error={activePickup.errors.totalAmount}
+                      >
+                        <InputWithSuffix id={`${activeFlow}-amount`} type="number" min="1" suffix="₽" value={activePickup.totalAmount} onChange={(event) => updatePickup({ totalAmount: event.target.value })} />
+                      </Field>
+                    </div>
+
+                    <Field label={paidFieldCopy.attachmentLabel} htmlFor={`${activeFlow}-attachment`} hint={paidFieldCopy.attachmentHint} error={activePickup.errors.attachment}>
+                      <FileUploadCard
+                        id={`${activeFlow}-attachment`}
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        file={activePickup.attachment}
+                        onChange={(file) => updatePickup({ attachment: file })}
+                      />
+                      <div className="hidden">
+                        <input
+                          id={`${activeFlow}-attachment-hidden`}
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.pdf"
+                          className="sr-only"
+                          onChange={(event) => updatePickup({ attachment: event.target.files?.[0] ?? null })}
+                        />
+                        <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-2xl text-[color:var(--accent-strong)]">
+                          ↑
+                        </span>
+                        <span className="mt-5 text-lg font-semibold text-[color:var(--foreground)]">
+                          {activePickup.attachment ? activePickup.attachment.name : "Нажмите для загрузки"}
+                        </span>
+                        <span className="mt-2 text-sm text-[color:var(--muted)]">
+                          {activePickup.attachment ? "Файл прикреплён. Можно продолжать." : "Поддерживаются изображения и PDF."}
+                        </span>
+                      </div>
+                    </Field>
+                  </>
+                )}
               </>
             ) : (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field
-                    label="Количество"
+                    label="Количество товаров"
                     htmlFor={`${activeFlow}-count`}
                     hint="Введите общее количество товаров для получения"
                     error={activePickup.errors.itemCount}
@@ -1294,7 +1690,7 @@ export function SuperboxApp() {
                     <InputWithSuffix id={`${activeFlow}-count`} type="number" min="1" suffix="шт." value={activePickup.itemCount} onChange={(event) => updatePickup({ itemCount: event.target.value })} />
                   </Field>
                   <Field
-                    label="Итоговая цена"
+                    label="Итоговая цена всех товаров"
                     htmlFor={`${activeFlow}-amount`}
                     hint="Укажите, пожалуйста, общую сумму всех товаров в заказе"
                     error={activePickup.errors.totalAmount}
@@ -1737,7 +2133,7 @@ export function SuperboxApp() {
           <div className="flow-surface float-in rounded-[28px] p-6" style={{ animationDelay: "120ms" }}>
             <div className="mb-4 border-b border-[color:var(--line)] pb-4">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)]">Курьерская доставка</p>
-              <p className="mt-1 text-xl font-semibold text-[color:var(--foreground)]">Тарифы по весу</p>
+              <p className="mt-1 text-xl font-semibold text-[color:var(--foreground)]">Тариф по городу</p>
             </div>
             <table className="w-full text-sm">
               <thead>

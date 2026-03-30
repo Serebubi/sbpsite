@@ -25,6 +25,14 @@ function parseNumberField(rawValue: unknown, fieldLabel: string) {
   return parsed;
 }
 
+function getUploadedFile(files: Request["files"], fieldName: string) {
+  if (!files || Array.isArray(files)) {
+    return null;
+  }
+
+  return files[fieldName]?.[0] ?? null;
+}
+
 export function createOrderRouter(orderService: OrderService) {
   const router = Router();
 
@@ -38,9 +46,11 @@ export function createOrderRouter(orderService: OrderService) {
     }
   });
 
-  router.post("/create", upload.single("attachment"), async (request: Request, response: Response, next) => {
+  router.post("/create", upload.fields([{ name: "attachment", maxCount: 1 }, { name: "productAttachment", maxCount: 1 }]), async (request: Request, response: Response, next) => {
     try {
       const body = request.body as Record<string, string | undefined>;
+      const attachmentFile = getUploadedFile(request.files, "attachment");
+      const productAttachmentFile = getUploadedFile(request.files, "productAttachment");
       const rawPayload =
         body.orderType === "home_delivery"
           ? {
@@ -70,8 +80,42 @@ export function createOrderRouter(orderService: OrderService) {
                   lastName: body.lastName,
                   phone: body.phone,
                   trackingNumber: body.trackingNumber,
+                  shipmentNumber: body.shipmentNumber,
                   pickupCode: body.pickupCode,
                 }
+              : body.marketplace === "wildberries_premium"
+                ? {
+                    orderType: body.orderType,
+                    marketplace: body.marketplace,
+                    firstName: body.firstName,
+                    lastName: body.lastName,
+                    phone: body.phone,
+                    totalAmount: parseNumberField(body.totalAmount, "Общая сумма"),
+                  }
+              : body.marketplace === "bulky"
+                ? {
+                    orderType: body.orderType,
+                    marketplace: body.marketplace,
+                    firstName: body.firstName,
+                    lastName: body.lastName,
+                    phone: body.phone,
+                    senderName: body.senderName,
+                    trackingNumber: body.trackingNumber,
+                    pickupCode: body.pickupCode,
+                  }
+              : body.marketplace === "courier"
+                ? {
+                    orderType: body.orderType,
+                    marketplace: body.marketplace,
+                    firstName: body.firstName,
+                    lastName: body.lastName,
+                    phone: body.phone,
+                    senderName: body.senderName,
+                    trackingNumber: body.trackingNumber,
+                    pickupCode: body.pickupCode,
+                    itemCount: parseNumberField(body.itemCount, "Количество товаров"),
+                    totalAmount: parseNumberField(body.totalAmount, "Общая сумма"),
+                  }
               : {
                   orderType: body.orderType,
                   marketplace: body.marketplace,
@@ -80,16 +124,28 @@ export function createOrderRouter(orderService: OrderService) {
                   phone: body.phone,
                   itemCount: parseNumberField(body.itemCount, "Количество товаров"),
                   totalAmount: parseNumberField(body.totalAmount, "Общая сумма"),
+                  trackingNumber: body.trackingNumber,
+                  pickupCode: body.pickupCode,
                 };
       const payload = createOrderSchema.parse(rawPayload);
 
+      if (payload.orderType === "pickup_paid" && payload.marketplace === "wildberries_premium") {
+        if (!productAttachmentFile) {
+          throw new HttpError(400, "Прикрепите скриншот товара.");
+        }
+        if (!attachmentFile) {
+          throw new HttpError(400, "Приложите штрих-код или QR код для получения.");
+        }
+      }
+
       if (
         payload.orderType === "pickup_paid" &&
+        payload.marketplace !== "wildberries_premium" &&
         payload.marketplace !== "cdek" &&
         payload.marketplace !== "5post" &&
         payload.marketplace !== "dpd" &&
         payload.marketplace !== "avito" &&
-        !request.file
+        !attachmentFile
       ) {
         throw new HttpError(400, "Прикрепите QR или штрих-код.");
       }
@@ -98,8 +154,15 @@ export function createOrderRouter(orderService: OrderService) {
         throw new HttpError(400, "Ссылка не соответствует выбранному маркетплейсу.");
       }
 
-      const attachment = toAttachmentRecord(request.file);
-      const order = await orderService.createOrder(payload, attachment, getAttachmentUrl(request, attachment?.filePath ?? null));
+      const attachment = toAttachmentRecord(attachmentFile);
+      const productAttachment = toAttachmentRecord(productAttachmentFile);
+      const order = await orderService.createOrder(
+        payload,
+        attachment,
+        getAttachmentUrl(request, attachment?.filePath ?? null),
+        productAttachment,
+        getAttachmentUrl(request, productAttachment?.filePath ?? null),
+      );
       response.status(201).json(
         createOrderResponseSchema.parse({
           order,

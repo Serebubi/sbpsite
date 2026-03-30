@@ -33,12 +33,25 @@ describe("shared schemas", () => {
       firstName: "Иван",
       lastName: "Иванов",
       phone: "+79997776655",
-      trackingNumber: "CDEK-123456",
-      pickupCode: "7788",
+      trackingNumber: "12345678901",
     });
 
     expect(result.marketplace).toBe("cdek");
-    expect(result.trackingNumber).toBe("CDEK-123456");
+    expect(result.trackingNumber).toBe("12345678901");
+  });
+
+  it("validates cdek paid pickup input with shipment number only", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "cdek",
+      firstName: "Иван",
+      lastName: "Иванов",
+      phone: "+79997776655",
+      shipmentNumber: "CN0016355297RU9",
+    });
+
+    expect(result.marketplace).toBe("cdek");
+    expect(result.shipmentNumber).toBe("CN0016355297RU9");
   });
 
   it("validates 5post paid pickup input", () => {
@@ -81,6 +94,105 @@ describe("shared schemas", () => {
 
     expect(result.marketplace).toBe("avito");
     expect(result.pickupCode).toBe("6677");
+  });
+
+  it("validates detmir paid pickup input", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "detmir",
+      firstName: "Иван",
+      lastName: "Иванов",
+      phone: "+79997776655",
+      trackingNumber: "DM-123456",
+      pickupCode: "8899",
+      itemCount: 2,
+      totalAmount: 3500,
+    });
+
+    expect(result.marketplace).toBe("detmir");
+    expect(result.trackingNumber).toBe("DM-123456");
+    expect(result.pickupCode).toBe("8899");
+  });
+
+  it("validates goldapple paid pickup input", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "goldapple",
+      firstName: "Иван",
+      lastName: "Иванов",
+      phone: "+79997776655",
+      trackingNumber: "GA-123456",
+      itemCount: 2,
+      totalAmount: 3500,
+    });
+
+    expect(result.marketplace).toBe("goldapple");
+    expect(result.trackingNumber).toBe("GA-123456");
+  });
+
+  it("validates letual paid pickup input", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "letual",
+      firstName: "Иван",
+      lastName: "Иванов",
+      phone: "+79997776655",
+      trackingNumber: "LET-123456",
+      itemCount: 2,
+      totalAmount: 3500,
+    });
+
+    expect(result.marketplace).toBe("letual");
+    expect(result.trackingNumber).toBe("LET-123456");
+  });
+
+  it("validates wildberries premium paid pickup input", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "wildberries_premium",
+      firstName: "Иван",
+      lastName: "Иванов",
+      phone: "+79997776655",
+      totalAmount: 25000,
+    });
+
+    expect(result.marketplace).toBe("wildberries_premium");
+    expect(result.totalAmount).toBe(25000);
+  });
+
+  it("validates bulky paid pickup input", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "bulky",
+      firstName: "Иван",
+      lastName: "Иванов",
+      phone: "+79997776655",
+      senderName: "OZON",
+      trackingNumber: "BULKY-42",
+      pickupCode: "7788",
+    });
+
+    expect(result.marketplace).toBe("bulky");
+    expect(result.senderName).toBe("OZON");
+  });
+
+  it("validates courier paid pickup input", () => {
+    const result = createPaidPickupOrderSchema.parse({
+      orderType: "pickup_paid",
+      marketplace: "courier",
+      firstName: "Иван",
+      lastName: "Иванов",
+      phone: "+79997776655",
+      senderName: "Ривгош",
+      trackingNumber: "COURIER-42",
+      pickupCode: "4455",
+      itemCount: 2,
+      totalAmount: 3500,
+    });
+
+    expect(result.marketplace).toBe("courier");
+    expect(result.senderName).toBe("Ривгош");
+    expect(result.itemCount).toBe(2);
   });
 
   it("validates home delivery input", () => {

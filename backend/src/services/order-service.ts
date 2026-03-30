@@ -33,6 +33,8 @@ export class OrderService {
     payload: CreateOrderPayload,
     attachment: OrderRecord["attachment"],
     attachmentUrl: string | null,
+    productAttachment: OrderRecord["productAttachment"] = null,
+    productAttachmentUrl: string | null = null,
   ) {
     const orders = await this.repository.listOrders();
     const nextNumber = String(
@@ -88,6 +90,8 @@ export class OrderService {
       itemCount: "itemCount" in payload ? payload.itemCount : null,
       totalAmount: "totalAmount" in payload ? payload.totalAmount : null,
       trackingNumber: "trackingNumber" in payload ? payload.trackingNumber ?? null : null,
+      shipmentNumber: "shipmentNumber" in payload ? payload.shipmentNumber ?? null : null,
+      senderName: "senderName" in payload ? payload.senderName ?? null : null,
       pickupCode: "pickupCode" in payload ? payload.pickupCode ?? null : null,
       sourceUrl: "sourceUrl" in payload ? payload.sourceUrl : null,
       deliveryAddress: "deliveryAddress" in payload ? payload.deliveryAddress : null,
@@ -95,6 +99,7 @@ export class OrderService {
       deliveryTimeSlot: "deliveryTimeSlot" in payload ? payload.deliveryTimeSlot : null,
       productPreview: "productPreview" in payload ? payload.productPreview : null,
       attachment,
+      productAttachment,
       crmSyncState: "pending",
       crmContactId: null,
       crmDealId: null,
@@ -113,7 +118,7 @@ export class OrderService {
     const savedOrder = await this.repository.saveOrder(baseOrder);
 
     try {
-      const snapshot = await this.bitrixService.syncOrder(savedOrder, attachmentUrl);
+      const snapshot = await this.bitrixService.syncOrder(savedOrder, attachmentUrl, productAttachmentUrl);
       const syncedOrder = this.applyBitrixSnapshot(savedOrder, snapshot, true);
       return this.repository.saveOrder(syncedOrder);
     } catch (error) {

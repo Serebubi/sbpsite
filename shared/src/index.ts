@@ -122,7 +122,10 @@ export const marketplaceExampleUrls: Record<MarketplaceId, string> = {
 };
 
 export const homeDeliveryMarketplaceId = "home_delivery" as const;
-export type OrderMarketplaceId = MarketplaceId | typeof homeDeliveryMarketplaceId;
+export const paidSpecialMarketplaceIds = ["courier", "bulky"] as const;
+export type PaidSpecialMarketplaceId = (typeof paidSpecialMarketplaceIds)[number];
+export const paidSpecialMarketplaceSchema = z.enum(paidSpecialMarketplaceIds);
+export type OrderMarketplaceId = MarketplaceId | PaidSpecialMarketplaceId | typeof homeDeliveryMarketplaceId;
 
 export const homeDeliveryTimeSlotValues = ["9:00-12:00", "12:00-15:00", "15:00-18:00"] as const;
 export type HomeDeliveryTimeSlot = (typeof homeDeliveryTimeSlotValues)[number];
@@ -167,7 +170,7 @@ export const numericIdSchema = z
   .regex(/^\d+$/, "Введите корректный номер заказа");
 
 export const marketplaceSchema = z.enum(marketplaces.map((marketplace) => marketplace.id) as [MarketplaceId, ...MarketplaceId[]]);
-export const orderMarketplaceSchema = z.union([marketplaceSchema, z.literal(homeDeliveryMarketplaceId)]);
+export const orderMarketplaceSchema = z.union([marketplaceSchema, paidSpecialMarketplaceSchema, z.literal(homeDeliveryMarketplaceId)]);
 export const orderTypeSchema = z.enum(orderTypeValues);
 export const orderStatusSchema = z.enum(orderStatusValues);
 export const crmSyncStateSchema = z.enum(crmSyncStateValues);
@@ -193,13 +196,15 @@ export type ProductPreview = z.infer<typeof productPreviewSchema>;
 export const createPaidPickupOrderSchema = z
   .object({
     orderType: z.literal("pickup_paid"),
-    marketplace: marketplaceSchema,
+    marketplace: z.union([marketplaceSchema, paidSpecialMarketplaceSchema]),
     firstName: z.string().trim().optional(),
     lastName: z.string().trim().optional(),
     phone: phoneSchema,
     itemCount: z.number().int().positive("Укажите количество товаров").optional(),
     totalAmount: z.number().positive("Укажите сумму заказа").optional(),
     trackingNumber: z.string().trim().optional(),
+    shipmentNumber: z.string().trim().optional(),
+    senderName: z.string().trim().optional(),
     pickupCode: z.string().trim().optional(),
   })
   .superRefine((payload, ctx) => {
@@ -210,11 +215,12 @@ export const createPaidPickupOrderSchema = z
       if (!payload.lastName) {
         ctx.addIssue({ code: "custom", path: ["lastName"], message: "Укажите фамилию" });
       }
-      if (!payload.trackingNumber) {
-        ctx.addIssue({ code: "custom", path: ["trackingNumber"], message: "Укажите трек-номер" });
+      if (!payload.trackingNumber && !payload.shipmentNumber) {
+        ctx.addIssue({ code: "custom", path: ["trackingNumber"], message: "Заполните трек-номер или номер отправления ИМ" });
+        ctx.addIssue({ code: "custom", path: ["shipmentNumber"], message: "Заполните трек-номер или номер отправления ИМ" });
       }
-      if (!payload.pickupCode) {
-        ctx.addIssue({ code: "custom", path: ["pickupCode"], message: "Укажите код получения" });
+      if (payload.trackingNumber && !/^\d{11}$/.test(payload.trackingNumber)) {
+        ctx.addIssue({ code: "custom", path: ["trackingNumber"], message: "Трек-номер должен состоять ровно из 11 цифр" });
       }
       return;
     }
@@ -228,6 +234,70 @@ export const createPaidPickupOrderSchema = z
       }
       if (!payload.pickupCode) {
         ctx.addIssue({ code: "custom", path: ["pickupCode"], message: "Укажите код получения" });
+      }
+      return;
+    }
+
+    if (payload.marketplace === "detmir" || payload.marketplace === "goldapple" || payload.marketplace === "letual") {
+      if (!payload.firstName) {
+        ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите имя" });
+      }
+      if (!payload.lastName) {
+        ctx.addIssue({ code: "custom", path: ["lastName"], message: "Укажите фамилию" });
+      }
+      if (!payload.trackingNumber) {
+        ctx.addIssue({ code: "custom", path: ["trackingNumber"], message: "Укажите номер заказа" });
+      }
+      if (payload.itemCount == null) {
+        ctx.addIssue({ code: "custom", path: ["itemCount"], message: "Укажите количество товаров" });
+      }
+      if (payload.totalAmount == null) {
+        ctx.addIssue({ code: "custom", path: ["totalAmount"], message: "Укажите сумму заказа" });
+      }
+      return;
+    }
+
+    if (payload.marketplace === "wildberries_premium") {
+      if (!payload.firstName) {
+        ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите ФИО" });
+      }
+      if (!payload.lastName) {
+        ctx.addIssue({ code: "custom", path: ["lastName"], message: "Укажите ФИО" });
+      }
+      if (payload.totalAmount == null) {
+        ctx.addIssue({ code: "custom", path: ["totalAmount"], message: "Укажите стоимость товара" });
+      }
+      return;
+    }
+
+    if (payload.marketplace === "bulky") {
+      if (!payload.firstName) {
+        ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите имя" });
+      }
+      if (!payload.lastName) {
+        ctx.addIssue({ code: "custom", path: ["lastName"], message: "Укажите фамилию" });
+      }
+      if (!payload.senderName) {
+        ctx.addIssue({ code: "custom", path: ["senderName"], message: "Укажите название отправителя или интернет-магазина" });
+      }
+      return;
+    }
+
+    if (payload.marketplace === "courier") {
+      if (!payload.firstName) {
+        ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите имя" });
+      }
+      if (!payload.lastName) {
+        ctx.addIssue({ code: "custom", path: ["lastName"], message: "Укажите фамилию" });
+      }
+      if (!payload.senderName) {
+        ctx.addIssue({ code: "custom", path: ["senderName"], message: "Укажите название отправителя или интернет-магазина" });
+      }
+      if (payload.itemCount == null) {
+        ctx.addIssue({ code: "custom", path: ["itemCount"], message: "Укажите количество товаров" });
+      }
+      if (payload.totalAmount == null) {
+        ctx.addIssue({ code: "custom", path: ["totalAmount"], message: "Укажите сумму заказа" });
       }
       return;
     }
@@ -321,6 +391,8 @@ export const orderSchema = z.object({
   itemCount: z.number().int().positive().nullable(),
   totalAmount: z.number().positive().nullable(),
   trackingNumber: z.string().trim().min(1).nullable().default(null),
+  shipmentNumber: z.string().trim().min(1).nullable().default(null),
+  senderName: z.string().trim().min(1).nullable().default(null),
   pickupCode: z.string().trim().min(1).nullable().default(null),
   sourceUrl: z.string().url().nullable(),
   deliveryAddress: z.string().nullable(),
@@ -328,6 +400,7 @@ export const orderSchema = z.object({
   deliveryTimeSlot: homeDeliveryTimeSlotSchema.nullable().default(null),
   productPreview: productPreviewSchema.nullable(),
   attachment: orderAttachmentSchema.nullable(),
+  productAttachment: orderAttachmentSchema.nullable().default(null),
   crmSyncState: crmSyncStateSchema.default("pending"),
   crmContactId: z.string().trim().min(1).nullable().default(null),
   crmDealId: z.string().trim().min(1).nullable().default(null),
@@ -377,6 +450,8 @@ export const bitrixPayloadSchema = z.object({
     deliveryDate: z.string().nullable().default(null),
     deliveryTimeSlot: z.string().nullable().default(null),
     trackingNumber: z.string().nullable().default(null),
+    shipmentNumber: z.string().nullable().default(null),
+    senderName: z.string().nullable().default(null),
     pickupCode: z.string().nullable().default(null),
   }),
   pricing: z.object({
@@ -441,6 +516,12 @@ export function isAllowedDomainForMarketplace(url: string, marketplace: Marketpl
 export function humanizeMarketplace(marketplace: OrderMarketplaceId) {
   if (marketplace === homeDeliveryMarketplaceId) {
     return "Доставка на дом";
+  }
+  if (marketplace === "courier") {
+    return "Отправлю курьера";
+  }
+  if (marketplace === "bulky") {
+    return "Крупногабарит";
   }
   return marketplaceById[marketplace].label;
 }

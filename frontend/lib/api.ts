@@ -20,9 +20,12 @@ export async function createPickupOrder(payload: {
   itemCount?: string;
   totalAmount?: string;
   trackingNumber?: string;
+  shipmentNumber?: string;
+  senderName?: string;
   pickupCode?: string;
   sourceUrl?: string;
   attachment?: File;
+  productAttachment?: File;
 }) {
   const formData = new FormData();
   formData.set("orderType", payload.orderType);
@@ -41,6 +44,12 @@ export async function createPickupOrder(payload: {
   if (payload.trackingNumber) {
     formData.set("trackingNumber", payload.trackingNumber);
   }
+  if (payload.shipmentNumber) {
+    formData.set("shipmentNumber", payload.shipmentNumber);
+  }
+  if (payload.senderName) {
+    formData.set("senderName", payload.senderName);
+  }
   if (payload.pickupCode) {
     formData.set("pickupCode", payload.pickupCode);
   }
@@ -49,6 +58,9 @@ export async function createPickupOrder(payload: {
   }
   if (payload.attachment) {
     formData.set("attachment", payload.attachment);
+  }
+  if (payload.productAttachment) {
+    formData.set("productAttachment", payload.productAttachment);
   }
 
   const response = await fetch(`${API_BASE_URL}/orders/create`, {

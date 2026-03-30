@@ -191,7 +191,7 @@ function buildCustomerFullName(order: OrderRecord) {
   return parts.length > 0 ? parts.join(" ") : "Клиент";
 }
 
-function buildDealComments(order: OrderRecord, attachmentUrl: string | null) {
+function buildDealComments(order: OrderRecord, attachmentUrl: string | null, productAttachmentUrl: string | null) {
   const lines = [
     `Номер заказа: ${order.orderNumber}`,
     `Тип заказа: ${buildOrderTypeLabel(order.orderType)}`,
@@ -220,6 +220,14 @@ function buildDealComments(order: OrderRecord, attachmentUrl: string | null) {
     lines.push(`Трек-номер: ${order.trackingNumber}`);
   }
 
+  if (order.shipmentNumber) {
+    lines.push(`Номер отправления ИМ: ${order.shipmentNumber}`);
+  }
+
+  if (order.senderName) {
+    lines.push(`Отправитель / интернет-магазин: ${order.senderName}`);
+  }
+
   if (order.pickupCode) {
     lines.push(`Код получения: ${order.pickupCode}`);
   }
@@ -228,10 +236,16 @@ function buildDealComments(order: OrderRecord, attachmentUrl: string | null) {
     lines.push(`Товар: ${order.productPreview.title}`);
   }
 
+  if (productAttachmentUrl) {
+    lines.push(`Скриншот товара: ${productAttachmentUrl}`);
+  } else if (order.productAttachment) {
+    lines.push(`Скриншот товара: ${order.productAttachment.fileName} (${order.productAttachment.filePath})`);
+  }
+
   if (attachmentUrl) {
-    lines.push(`Вложение: ${attachmentUrl}`);
+    lines.push(`Штрих-код / QR: ${attachmentUrl}`);
   } else if (order.attachment) {
-    lines.push(`Вложение: ${order.attachment.fileName} (${order.attachment.filePath})`);
+    lines.push(`Штрих-код / QR: ${order.attachment.fileName} (${order.attachment.filePath})`);
   }
 
   return lines.join("\n");
@@ -311,9 +325,9 @@ export class BitrixService {
     return data.result;
   }
 
-  async syncOrder(order: OrderRecord, attachmentUrl: string | null): Promise<BitrixSyncSnapshot> {
+  async syncOrder(order: OrderRecord, attachmentUrl: string | null, productAttachmentUrl: string | null = null): Promise<BitrixSyncSnapshot> {
     const crmContactId = await this.findOrCreateContact(order);
-    const crmDealId = await this.createDeal(order, crmContactId, attachmentUrl);
+    const crmDealId = await this.createDeal(order, crmContactId, attachmentUrl, productAttachmentUrl);
 
     return createSnapshot({
       crmSyncState: "synced",
@@ -375,7 +389,7 @@ export class BitrixService {
     return normalizedId;
   }
 
-  private async createDeal(order: OrderRecord, crmContactId: string | null, attachmentUrl: string | null) {
+  private async createDeal(order: OrderRecord, crmContactId: string | null, attachmentUrl: string | null, productAttachmentUrl: string | null) {
     const dealId = await this.callMethod<string | number>("crm.deal.add", {
       fields: {
         TITLE: `SUPERBOX #${order.orderNumber}`,
@@ -386,7 +400,7 @@ export class BitrixService {
         ORIGIN_ID: order.orderNumber,
         CONTACT_ID: crmContactId,
         OPPORTUNITY: order.totalAmount ?? undefined,
-        COMMENTS: buildDealComments(order, attachmentUrl),
+        COMMENTS: buildDealComments(order, attachmentUrl, productAttachmentUrl),
       },
     });
 
@@ -418,6 +432,8 @@ export function mapOrderToBitrixPayload(order: OrderRecord) {
       deliveryDate: order.deliveryDate,
       deliveryTimeSlot: order.deliveryTimeSlot,
       trackingNumber: order.trackingNumber,
+      shipmentNumber: order.shipmentNumber,
+      senderName: order.senderName,
       pickupCode: order.pickupCode,
     },
     pricing: {
