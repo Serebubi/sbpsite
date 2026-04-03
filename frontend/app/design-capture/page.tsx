@@ -24,6 +24,7 @@ const sampleOrder: OrderRecord = {
   shipmentNumber: null,
   senderName: null,
   pickupCode: null,
+  size: null,
   sourceUrl: "https://www.wildberries.ru/catalog/12473723/detail.aspx",
   deliveryAddress: null,
   deliveryDate: null,

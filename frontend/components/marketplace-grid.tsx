@@ -13,7 +13,11 @@ interface MarketplaceGridProps {
 export function MarketplaceGrid({ value, onSelect, filter, children }: MarketplaceGridProps) {
   const visibleMarketplaces = filter ? marketplaces.filter((m) => filter.includes(m.id)) : marketplaces;
   return (
-    <div className={`grid gap-4 ${filter ? "mx-auto max-w-xl grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"}`}>
+    <div
+      className={`grid gap-4 ${
+        filter ? "mx-auto w-full max-w-5xl grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      }`}
+    >
       {visibleMarketplaces.map((marketplace, index) => {
         const active = value === marketplace.id;
 

@@ -333,12 +333,11 @@ export const createPickupOrderSchema = z.object({
 export const createPickupStandardOrderSchema = z.object({
   orderType: z.literal("pickup_standard"),
   marketplace: marketplaceSchema,
-  firstName: z.string().trim().min(1, "Укажите имя"),
-  lastName: z.string().trim().min(1, "Укажите фамилию"),
+  firstName: z.string().trim().min(1, "\u0423\u043a\u0430\u0436\u0438\u0442\u0435 \u0438\u043c\u044f"),
+  lastName: z.string().trim().min(1, "\u0423\u043a\u0430\u0436\u0438\u0442\u0435 \u0444\u0430\u043c\u0438\u043b\u0438\u044e"),
   phone: phoneSchema,
-  itemCount: z.number().int().positive("Укажите количество товаров"),
-  totalAmount: z.number().positive("Укажите сумму заказа"),
-  sourceUrl: z.string().url("Введите корректную ссылку"),
+  size: z.string().trim().min(1).max(120, "\u0420\u0430\u0437\u043c\u0435\u0440 \u0441\u043b\u0438\u0448\u043a\u043e\u043c \u0434\u043b\u0438\u043d\u043d\u044b\u0439").optional(),
+  sourceUrl: z.string().url("\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043a\u043e\u0440\u0440\u0435\u043a\u0442\u043d\u0443\u044e \u0441\u0441\u044b\u043b\u043a\u0443"),
 });
 
 export const createHomeDeliveryOrderSchema = z.object({
@@ -398,6 +397,7 @@ export const orderSchema = z.object({
   shipmentNumber: z.string().trim().min(1).nullable().default(null),
   senderName: z.string().trim().min(1).nullable().default(null),
   pickupCode: z.string().trim().min(1).nullable().default(null),
+  size: z.string().trim().min(1).nullable().default(null),
   sourceUrl: z.string().url().nullable(),
   deliveryAddress: z.string().nullable(),
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
@@ -458,6 +458,7 @@ export const bitrixPayloadSchema = z.object({
     shipmentNumber: z.string().nullable().default(null),
     senderName: z.string().nullable().default(null),
     pickupCode: z.string().nullable().default(null),
+    size: z.string().nullable().default(null),
   }),
   pricing: z.object({
     itemCount: z.number().nullable(),

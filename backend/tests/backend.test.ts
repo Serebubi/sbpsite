@@ -181,7 +181,7 @@ describe("backend api", () => {
     expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("https://www.wildberries.ru/catalog/123/detail.aspx");
   });
 
-  it("uses default Bitrix fields for item count and total amount", async () => {
+  it("keeps pickup standard item count and total amount empty in Bitrix when they are not part of the form", async () => {
     let dealPayload: URLSearchParams | null = null;
 
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
@@ -213,8 +213,7 @@ describe("backend api", () => {
       .field("firstName", "Ivan")
       .field("lastName", "Ivanov")
       .field("phone", "+79997776655")
-      .field("itemCount", "3")
-      .field("totalAmount", "5200")
+      .field("size", "42")
       .field("sourceUrl", "https://www.wildberries.ru/catalog/123/detail.aspx");
 
     expect(createResponse.status).toBe(201);
@@ -223,18 +222,13 @@ describe("backend api", () => {
     expect(dealPayload?.get("fields[UF_CRM_1774909238633]")).toBe("WILDBERRIES");
     expect(dealPayload?.get("fields[UF_CRM_1774909246381]")).toBe("CREATED");
     expect(dealPayload?.get("fields[UF_CRM_1774909256492]")).toBe(createResponse.body.order.pickupAddress);
-    expect(dealPayload?.get("fields[UF_CRM_1774908835361]")).toBe("3");
-    expect(dealPayload?.get("fields[UF_CRM_1774908871627]")).toBe("5200");
-    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Номер заказа:");
-    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Тип заказа:");
-    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Маркетплейс:");
-    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Статус:");
-    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Адрес ПВЗ:");
-    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Количество: 3");
-    expect(dealPayload?.get("fields[COMMENTS]")).not.toContain("Сумма: 5200");
+    expect(dealPayload?.get("fields[UF_CRM_1774908835361]")).toBeNull();
+    expect(dealPayload?.get("fields[UF_CRM_1774908871627]")).toBeNull();
+    expect(createResponse.body.order.size).toBe("42");
+    expect(dealPayload?.get("fields[COMMENTS]")).toContain("42");
   });
 
-  it("does not return an invalid-number error when item count is omitted", async () => {
+  it("creates pickup standard order without item count and total amount", async () => {
     const app = createApp();
 
     const createResponse = await request(app)
@@ -244,14 +238,14 @@ describe("backend api", () => {
       .field("firstName", "Сергей")
       .field("lastName", "Иванов")
       .field("phone", "+79997776655")
-      .field("totalAmount", "4300")
+      .field("size", "M")
       .field("sourceUrl", "https://www.wildberries.ru/catalog/123/detail.aspx");
 
-    expect(createResponse.status).toBe(400);
-    expect(createResponse.body.message).toContain("Проверьте заполнение формы");
-    expect(createResponse.body.message).not.toContain("заполнено некорректно");
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.order.itemCount).toBeNull();
+    expect(createResponse.body.order.totalAmount).toBeNull();
+    expect(createResponse.body.order.size).toBe("M");
   });
-
   it("creates a home delivery request from existing order numbers", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
       const url = String(input);
