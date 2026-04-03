@@ -43,6 +43,7 @@ type FlowId =
   | "order_lookup"
   | "pickup_paid"
   | "home_delivery"
+  | "ship_russia"
   | "cancel_order"
   | "support"
   | "tariffs";
@@ -630,6 +631,29 @@ function ActionCard({
         <p className={`${featured ? "text-white/78" : softAccent ? "text-white/82" : "text-[color:var(--muted)]"} text-sm leading-7`}>{description}</p>
       </div>
     </button>
+  );
+}
+
+function ShipRussiaVisualPlaceholder({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="relative h-full min-h-[230px] overflow-hidden rounded-[30px] border border-[color:var(--line)] bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(246,241,255,0.92))] p-5 shadow-[0_18px_40px_rgba(84,58,128,0.08)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(196,46,160,0.1),transparent_38%),radial-gradient(circle_at_bottom_left,rgba(124,51,255,0.12),transparent_42%)]" />
+      <div className="relative flex h-full flex-col justify-between rounded-[24px] border border-dashed border-[rgba(123,77,255,0.24)] bg-white/72 p-6 backdrop-blur-sm">
+        <span className="inline-flex w-fit rounded-full bg-[rgba(196,46,160,0.1)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--accent-strong)]">
+          Заглушка
+        </span>
+        <div>
+          <p className="text-2xl font-[family-name:var(--font-display)] leading-none text-[color:var(--foreground)]">{title}</p>
+          <p className="mt-3 max-w-sm text-sm leading-7 text-[color:var(--muted)]">{description}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2263,6 +2287,309 @@ export function SuperboxApp() {
     { w: "400–499,9 кг", p: "1 500 ₽" },
   ];
 
+  const shipRussiaAdvantages = [
+    "Без очередей и лишних действий",
+    "Упаковка на месте",
+    "Отслеживание каждой посылки",
+    "Страхование грузов",
+    "Индивидуальный подход",
+  ];
+
+  const shipRussiaPackaging = [
+    "Коробки всех размеров",
+    "Пузырчатая плёнка",
+    "Скотч и защита груза",
+    "Помощь сотрудников",
+  ];
+
+  const shipRussiaAllowed = ["Документы", "Личные вещи", "Мелкую технику", "Подарки", "Хрупкие грузы", "Сувениры (с документами)"];
+
+  const shipRussiaForbidden = ["Оружие и взрывчатые вещества", "Жидкости и химикаты", "Продукты питания", "Алкоголь и сигареты", "Лекарства", "Деньги"];
+
+  const shipRussiaDeliveryControl = ["Отслеживание по трек-номеру", "Уведомления о статусе", "Доставка до пункта или курьером"];
+
+  const shipRussiaProtection = ["Страхование посылок", "Компенсация при утере или повреждении", "Спокойствие за груз"];
+
+  const shipRussiaPayment = ["При отправке", "При получении", "Без наложенного платежа"];
+
+  const shipRussiaSteps = [
+    "Вы приносите посылку",
+    "Мы проверяем и упаковываем",
+    "Оформляем отправление",
+    "Вы получаете трек-номер",
+    "Доставка получателю",
+  ];
+
+  const renderShipRussiaFlow = () => (
+    <section className="mx-auto w-full max-w-[1180px] space-y-6">
+      <section className="soft-card overflow-hidden rounded-[36px] px-6 py-8 sm:px-8 sm:py-10 lg:px-10">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[color:var(--accent-strong)]">Отправка по России из ДНР</p>
+            <h1 className="mt-5 font-[family-name:var(--font-display)] text-4xl leading-[0.95] text-[color:var(--foreground)] sm:text-5xl lg:text-6xl">
+              Отправка посылок по России
+            </h1>
+            <p className="mt-5 text-xl font-semibold text-[color:var(--foreground)]">Быстро. Без очередей. В одном месте.</p>
+            <p className="mt-4 text-base leading-8 text-[color:var(--muted)]">
+              Отправляйте документы, вещи и технику по всей России через удобный сервис «одного окна».
+            </p>
+          </div>
+          <div className="relative">
+            <div className="relative aspect-[1.16/1]">
+              <Image
+                src="/ship-russia-main-pastel.png"
+                alt="Доставка по России в пастельных тонах"
+                fill
+                className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 42vw"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Почему выбирают нас</p>
+            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
+              Сервис без очередей и лишней суеты
+            </h2>
+            <div className="mt-6 grid gap-3">
+              {shipRussiaAdvantages.map((item) => (
+                <div key={item} className="rounded-[22px] bg-[color:var(--surface-soft)] px-4 py-3 text-base font-medium text-[color:var(--foreground)]">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="relative">
+            <div className="relative aspect-[1.16/1]">
+              <Image
+                src="/ship-russia-pastel-packing-station.png"
+                alt="Станция упаковки в пастельных тонах"
+                fill
+                className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 42vw"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Подготовка отправления</p>
+            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
+              Мы полностью подготовим вашу посылку к отправке
+            </h2>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {shipRussiaPackaging.map((item) => (
+                <div key={item} className="rounded-[24px] border border-[color:var(--line)] bg-white/92 px-4 py-4">
+                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">В наличии</p>
+                  <p className="mt-3 text-lg font-semibold text-[color:var(--foreground)]">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="relative">
+            <div className="relative aspect-[1.16/1]">
+              <Image
+                src="/ship-russia-purple-packing-materials.png"
+                alt="Упаковочные материалы с фиолетовыми акцентами"
+                fill
+                className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 42vw"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Что можно отправить</p>
+            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
+              Допустимые категории отправлений
+            </h2>
+            <div className="mt-6 grid gap-3">
+              {shipRussiaAllowed.map((item) => (
+                <div key={item} className="flex items-start gap-3 rounded-[22px] bg-[color:var(--surface-soft)] px-4 py-3">
+                  <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm text-[color:var(--accent-strong)] shadow-[0_8px_18px_rgba(84,58,128,0.06)]">
+                    ✓
+                  </span>
+                  <span className="text-base font-medium text-[color:var(--foreground)]">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="relative">
+            <div className="relative aspect-[1.16/1]">
+              <Image
+                src="/ship-russia-allowed-items-111.png"
+                alt="Разрешённые категории отправлений"
+                fill
+                className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 42vw"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[32px] border border-[rgba(239,68,68,0.16)] bg-[linear-gradient(135deg,rgba(255,248,248,0.94),rgba(255,255,255,0.9))] px-6 py-7 shadow-[0_18px_40px_rgba(239,68,68,0.06)] sm:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:#c2410c]">Что нельзя отправлять</p>
+            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
+              Запрещённые категории
+            </h2>
+            <div className="mt-6 grid gap-3">
+              {shipRussiaForbidden.map((item) => (
+                <div key={item} className="rounded-[22px] border border-[rgba(239,68,68,0.12)] bg-white/88 px-4 py-3 text-base font-medium text-[color:var(--foreground)]">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="relative">
+            <div className="relative aspect-[1.16/1]">
+              <Image
+                src="/ship-russia-restricted-items-222.png"
+                alt="Ограничения на отправку"
+                fill
+                className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 42vw"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Контроль доставки</p>
+            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
+              Полный контроль и защита отправлений
+            </h2>
+            <div className="mt-6 grid gap-4">
+              <div className="rounded-[24px] bg-[color:var(--surface-soft)] p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Полный контроль доставки</p>
+                <ul className="mt-4 space-y-3 text-base leading-7 text-[color:var(--foreground)]">
+                  {shipRussiaDeliveryControl.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-[24px] bg-[color:var(--surface-soft)] p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Защита ваших отправлений</p>
+                <ul className="mt-4 space-y-3 text-base leading-7 text-[color:var(--foreground)]">
+                  {shipRussiaProtection.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-[24px] border border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.07)] p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:#b45309]">Удобная оплата</p>
+                <ul className="mt-4 space-y-3 text-base leading-7 text-[color:var(--foreground)]">
+                  {shipRussiaPayment.map((item) => (
+                    <li key={item}>{item === "Без наложенного платежа" ? "❗️ Без наложенного платежа" : `• ${item}`}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div className="relative min-h-[320px] lg:min-h-full">
+            <div className="relative h-full min-h-[320px]">
+              <Image
+                src="/ship-russia-tracking-protection.png"
+                alt="Доставка под защитой и отслеживанием"
+                fill
+                className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 42vw"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Как это работает</p>
+            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
+              Путь отправления шаг за шагом
+            </h2>
+            <div className="mt-6 grid gap-3">
+              {shipRussiaSteps.map((item, index) => (
+                <div key={item} className="flex items-center gap-4 rounded-[24px] bg-[color:var(--surface-soft)] px-4 py-4">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-[color:var(--accent-strong)] shadow-[0_10px_22px_rgba(84,58,128,0.08)]">
+                    {index + 1}
+                  </span>
+                  <span className="text-base font-medium text-[color:var(--foreground)]">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex min-h-[340px] items-center justify-center lg:min-h-full">
+            <div className="relative h-[360px] w-full max-w-[430px] sm:h-[390px] lg:h-[430px] lg:max-w-[470px]">
+              <Image
+                src="/ship-russia-step-by-step-photoroom.png"
+                alt="Процесс доставки шаг за шагом"
+                fill
+                className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 42vw"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Контакты</p>
+            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
+              Остались вопросы?
+            </h2>
+            <div className="mt-6 grid gap-3">
+              <div className="rounded-[22px] bg-[color:var(--surface-soft)] px-4 py-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Написать прямо сейчас</p>
+                <p className="mt-2 text-base leading-7 text-[color:var(--foreground)]">
+                  Свяжитесь с нами в Telegram и получите консультацию по отправке.
+                </p>
+              </div>
+              <div className="rounded-[22px] bg-[color:var(--surface-soft)] px-4 py-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Позвонить</p>
+                <p className="mt-2 text-xl font-semibold text-[color:var(--foreground)]">+7 (949) 854-27-85</p>
+              </div>
+              <div className="rounded-[22px] border border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.07)] px-4 py-4">
+                <p className="text-lg font-semibold text-[color:var(--foreground)]">Отправьте посылку уже сегодня</p>
+                <p className="mt-2 text-base leading-7 text-[color:var(--foreground)]">
+                  Быстро оформим, надежно упакуем и доставим по России.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="relative">
+            <div className="relative aspect-[1.16/1]">
+              <Image
+                src="/ship-russia-contact-333.png"
+                alt="Контакты и доставка"
+                fill
+                className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 42vw"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  );
+
   const percentageTariffRows = [
     [
       { label: "OZON", value: "Бесплатно" },
@@ -2439,6 +2766,7 @@ export function SuperboxApp() {
     if (activeFlow === "home_delivery") return renderDeliveryFlow();
     if (activeFlow === "order_lookup") return renderLookupFlow();
     if (activeFlow === "cancel_order") return renderCancelFlow();
+    if (activeFlow === "ship_russia") return renderShipRussiaFlow();
     if (activeFlow === "tariffs") return renderTariffsView();
     return renderSupportFlow();
   };
@@ -2468,7 +2796,18 @@ export function SuperboxApp() {
             </span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => openFlow("ship_russia")}
+              className="inline-flex items-center gap-2 rounded-full border border-[rgba(16,185,129,0.18)] bg-[rgba(16,185,129,0.08)] px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:-translate-y-0.5 hover:border-[rgba(16,185,129,0.28)] hover:shadow-[0_10px_24px_rgba(16,185,129,0.1)]"
+            >
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-sm shadow-[0_8px_18px_rgba(84,58,128,0.08)]">
+                🚚
+              </span>
+              <span className="hidden lg:inline">Отправить по РФ</span>
+            </button>
+
             <button
               type="button"
               onClick={() => openFlow("order_lookup")}
