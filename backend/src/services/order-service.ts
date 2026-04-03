@@ -98,6 +98,7 @@ export class OrderService {
       shipmentNumber: "shipmentNumber" in payload ? payload.shipmentNumber ?? null : null,
       senderName: "senderName" in payload ? payload.senderName ?? null : null,
       pickupCode: "pickupCode" in payload ? payload.pickupCode ?? null : null,
+      size: "size" in payload ? payload.size ?? null : null,
       sourceUrl: "sourceUrl" in payload ? payload.sourceUrl : null,
       deliveryAddress: "deliveryAddress" in payload ? payload.deliveryAddress : null,
       deliveryDate: "deliveryDate" in payload ? payload.deliveryDate : null,

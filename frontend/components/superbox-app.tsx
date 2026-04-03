@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import {
+  Fragment,
   useEffect,
   useRef,
   startTransition,
@@ -54,6 +55,7 @@ type PickupState = {
   firstName: string;
   lastName: string;
   phone: string;
+  size: string;
   itemCount: string;
   totalAmount: string;
   trackingNumber: string;
@@ -248,6 +250,7 @@ function createPickupState(): PickupState {
     firstName: "",
     lastName: "",
     phone: "",
+    size: "",
     itemCount: "",
     totalAmount: "",
     trackingNumber: "",
@@ -404,6 +407,22 @@ function FileUploadCard({
       <span className="mt-2 text-sm text-[color:var(--muted)]">
         {file ? "Файл прикреплён. Можно продолжать." : "Поддерживаются изображения и PDF."}
       </span>
+    </div>
+  );
+}
+
+function HeroDeliveryVisual() {
+  return (
+    <div aria-hidden="true" className="relative w-[min(44rem,44vw)] max-w-full pr-2">
+      <Image
+        src="/hero-companies-collage-photoroom.png"
+        alt=""
+        width={1280}
+        height={853}
+        sizes="(min-width: 1280px) 42vw, (min-width: 1024px) 38vw, 0px"
+        className="h-auto w-full object-contain [filter:drop-shadow(0_28px_44px_rgba(181,151,232,0.24))]"
+        priority
+      />
     </div>
   );
 }
@@ -953,8 +972,7 @@ export function SuperboxApp() {
             firstName: activePickup.firstName,
             lastName: activePickup.lastName,
             phone: activePickup.phone,
-            itemCount: Number(activePickup.itemCount),
-            totalAmount: Number(activePickup.totalAmount),
+            size: activePickup.size.trim() || undefined,
             sourceUrl: activePickup.sourceUrl,
           })
         : createPaidPickupOrderSchema.safeParse({
@@ -991,8 +1009,15 @@ export function SuperboxApp() {
           firstName: activePickup.firstName,
           lastName: activePickup.lastName,
           phone: activePickup.phone,
-          itemCount: usesTrackingPickupFields || isWildberriesPremiumPaid || isBulkyPaid ? undefined : activePickup.itemCount,
-          totalAmount: usesTrackingPickupFields || isBulkyPaid ? undefined : activePickup.totalAmount,
+          size: activeFlow === "pickup_standard" ? activePickup.size.trim() || undefined : undefined,
+          itemCount:
+            activeFlow === "pickup_paid" && !usesTrackingPickupFields && !isWildberriesPremiumPaid && !isBulkyPaid
+              ? activePickup.itemCount
+              : undefined,
+          totalAmount:
+            activeFlow === "pickup_paid" && !usesTrackingPickupFields && !isBulkyPaid
+              ? activePickup.totalAmount
+              : undefined,
           trackingNumber: usesTrackingPickupFields || isDetmirPaid || isGoldapplePaid || isLetualPaid || isCourierPaid || isBulkyPaid ? activePickup.trackingNumber : undefined,
           shipmentNumber: isCdekPaid ? activePickup.shipmentNumber : undefined,
           senderName: isCourierPaid || isBulkyPaid ? activePickup.senderName : undefined,
@@ -1189,7 +1214,7 @@ export function SuperboxApp() {
             </div>
           </div>
           <div className="relative hidden justify-end lg:flex">
-            <div className="package-visual" />
+            <HeroDeliveryVisual />
           </div>
         </div>
       </section>
@@ -1274,7 +1299,7 @@ export function SuperboxApp() {
             <MarketplaceGrid
               value={isSpecial ? "" : (activePickup.marketplace as MarketplaceId | "")}
               onSelect={(marketplace) => updatePickup({ marketplace, errors: {} })}
-              filter={paid ? undefined : ["wildberries", "ozon"]}
+              filter={paid ? undefined : ["wildberries", "ozon", "yandex_market"]}
             >
               {paid ? (
                 <div className="h-full sm:col-span-2 lg:col-span-3 xl:col-start-2 xl:col-span-3">
@@ -1839,24 +1864,23 @@ export function SuperboxApp() {
               </>
             ) : (
               <>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field
-                    label="Количество товаров"
-                    htmlFor={`${activeFlow}-count`}
-                    hint="Введите общее количество товаров для получения"
-                    error={activePickup.errors.itemCount}
-                  >
-                    <InputWithSuffix id={`${activeFlow}-count`} type="number" min="1" suffix="шт." value={activePickup.itemCount} onChange={(event) => updatePickup({ itemCount: event.target.value })} />
-                  </Field>
-                  <Field
-                    label="Итоговая цена всех товаров"
-                    htmlFor={`${activeFlow}-amount`}
-                    hint="Укажите, пожалуйста, общую сумму всех товаров в заказе"
-                    error={activePickup.errors.totalAmount}
-                  >
-                    <InputWithSuffix id={`${activeFlow}-amount`} type="number" min="1" suffix="₽" value={activePickup.totalAmount} onChange={(event) => updatePickup({ totalAmount: event.target.value })} />
-                  </Field>
-                </div>
+                <Field
+                  label={
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span>Укажите размер</span>
+                      <span className={fieldStateLabelClass}>Не обязательное поле</span>
+                    </span>
+                  }
+                  htmlFor={`${activeFlow}-size`}
+                  error={activePickup.errors.size}
+                >
+                  <Input
+                    id={`${activeFlow}-size`}
+                    placeholder="Например, S, M, 42, 42.5, 128 GB"
+                    value={activePickup.size}
+                    onChange={(event) => updatePickup({ size: event.target.value })}
+                  />
+                </Field>
 
                 <Field label="Ссылка на товар" htmlFor={`${activeFlow}-sourceUrl`} hint="Ссылка должна соответствовать выбранному маркетплейсу." error={activePickup.errors.sourceUrl}>
                   <Input
@@ -2239,15 +2263,69 @@ export function SuperboxApp() {
     { w: "400–499,9 кг", p: "1 500 ₽" },
   ];
 
+  const percentageTariffRows = [
+    [
+      { label: "OZON", value: "Бесплатно" },
+      { label: "Wildberries", value: "8%" },
+      { label: "Яндекс Маркет", value: "10%" },
+    ],
+    [
+      { label: "Lamoda", value: "10%" },
+      { label: "Золотое Яблоко", value: "10%" },
+      { label: "Лэтуаль", value: "10%" },
+    ],
+  ];
+
   const renderTariffsView = () => (
     <section className="mx-auto w-full max-w-[1100px] space-y-6">
-      {/* Header */}
+      <div className="flow-surface float-in rounded-[28px] p-6">
+        <div className="mb-4 border-b border-[color:var(--line)] pb-4 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)] sm:text-sm">
+            Тарифы
+          </p>
+          <p className="mt-2 text-sm font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)] sm:text-base">
+              Тарифы · % от стоимости товара
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[760px] w-full text-sm">
+            <tbody>
+              {percentageTariffRows.map((row, rowIndex) => (
+                <tr key={rowIndex} className={rowIndex % 2 === 0 ? "" : "bg-[color:var(--surface-soft)]"}>
+                  {row.map((cell) => (
+                    <Fragment key={cell.label}>
+                      <th className="border-b border-r border-[color:var(--line)] px-4 py-3 text-left text-[color:var(--foreground)] sm:px-5 sm:text-base">
+                        {cell.label}
+                      </th>
+                      <td className="border-b border-r border-[color:var(--line)] px-4 py-3 text-right font-semibold text-[color:var(--foreground)] last:border-r-0 sm:px-5">
+                        {cell.value}
+                      </td>
+                    </Fragment>
+                  ))}
+                </tr>
+              ))}
+              <tr className="bg-[color:var(--surface-soft)]">
+                <th className="border-r border-[color:var(--line)] px-4 py-3 text-left text-[color:var(--foreground)] sm:px-5 sm:text-base">
+                  Детский Мир
+                </th>
+                <td className="border-r border-[color:var(--line)] px-4 py-3 text-right font-semibold text-[color:var(--foreground)] sm:px-5">
+                  10%
+                </td>
+                <th colSpan={3} className="border-r border-[color:var(--line)] px-4 py-3 text-center text-[color:var(--foreground)] sm:px-5 sm:text-base">
+                  Прочие интернет-магазины
+                </th>
+                <td className="px-4 py-3 text-right font-semibold text-[color:var(--foreground)] sm:px-5">15%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="float-in text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[color:var(--accent-strong)]">Цены · 2026</p>
         <h2 className="mt-2 font-[family-name:var(--font-display)] text-4xl leading-none text-[color:var(--foreground)] sm:text-5xl">
-          Тарифная сетка
+          Весовые тарифы
         </h2>
-        <p className="mt-3 text-sm leading-7 text-[color:var(--muted)]">
+        <p className="mt-4 text-lg font-semibold leading-8 text-[color:var(--accent-strong)] sm:text-[1.85rem]">
           WB Дорогостой · WB ОПТ · СДЭК · Авито · DPD
         </p>
       </div>
@@ -2391,6 +2469,17 @@ export function SuperboxApp() {
           </button>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openFlow("order_lookup")}
+              className="inline-flex items-center gap-2 rounded-full border border-[rgba(59,130,246,0.18)] bg-[rgba(59,130,246,0.08)] px-4 py-2 text-sm font-semibold text-[color:var(--foreground)] transition hover:-translate-y-0.5 hover:border-[rgba(59,130,246,0.3)] hover:shadow-[0_10px_24px_rgba(59,130,246,0.1)]"
+            >
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-sm shadow-[0_8px_18px_rgba(84,58,128,0.08)]">
+                ⌕
+              </span>
+              <span className="hidden sm:inline">Отследить</span>
+            </button>
+
             <button
               type="button"
               onClick={() => openFlow("tariffs")}

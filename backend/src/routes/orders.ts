@@ -89,8 +89,7 @@ export function createOrderRouter(orderService: OrderService) {
                   firstName: body.firstName,
                   lastName: body.lastName,
                   phone: body.phone,
-                  itemCount: parseOptionalNumberField(body.itemCount, "Количество товаров"),
-                  totalAmount: parseOptionalNumberField(body.totalAmount, "Общая сумма"),
+                  size: body.size,
                   sourceUrl: body.sourceUrl,
                 }
               : body.marketplace === "cdek" || body.marketplace === "5post" || body.marketplace === "dpd" || body.marketplace === "avito"

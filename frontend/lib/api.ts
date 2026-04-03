@@ -17,6 +17,7 @@ export async function createPickupOrder(payload: {
   firstName: string;
   lastName?: string;
   phone: string;
+  size?: string;
   itemCount?: string;
   totalAmount?: string;
   trackingNumber?: string;
@@ -36,6 +37,9 @@ export async function createPickupOrder(payload: {
     formData.set("lastName", payload.lastName);
   }
   formData.set("phone", payload.phone);
+  if (payload.size) {
+    formData.set("size", payload.size);
+  }
   if (payload.itemCount) {
     formData.set("itemCount", payload.itemCount);
   }
