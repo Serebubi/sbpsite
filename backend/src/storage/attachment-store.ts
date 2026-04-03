@@ -55,6 +55,10 @@ export function toAttachmentRecord(file?: Express.Multer.File | null) {
   };
 }
 
+export function toAttachmentRecords(files?: Express.Multer.File[] | null) {
+  return (files ?? []).map((file) => toAttachmentRecord(file)).filter((file) => file !== null);
+}
+
 export function getAttachmentUrl(request: Request, filePath: string | null) {
   if (!filePath) {
     return null;

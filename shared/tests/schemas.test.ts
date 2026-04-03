@@ -58,7 +58,8 @@ describe("shared schemas", () => {
     const result = createPaidPickupOrderSchema.parse({
       orderType: "pickup_paid",
       marketplace: "5post",
-      firstName: "Иван Иванович",
+      firstName: "Иван",
+      lastName: "Иванов",
       phone: "+79997776655",
       trackingNumber: "5POST-123456",
       pickupCode: "4455",
@@ -72,7 +73,8 @@ describe("shared schemas", () => {
     const result = createPaidPickupOrderSchema.parse({
       orderType: "pickup_paid",
       marketplace: "dpd",
-      firstName: "Иван Иванович",
+      firstName: "Иван",
+      lastName: "Иванов",
       phone: "+79997776655",
       trackingNumber: "DPD-123456",
       pickupCode: "5566",
@@ -86,7 +88,8 @@ describe("shared schemas", () => {
     const result = createPaidPickupOrderSchema.parse({
       orderType: "pickup_paid",
       marketplace: "avito",
-      firstName: "Иван Иванович",
+      firstName: "Иван",
+      lastName: "Иванов",
       phone: "+79997776655",
       trackingNumber: "AVITO-123456",
       pickupCode: "6677",
