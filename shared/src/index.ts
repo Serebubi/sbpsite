@@ -1,8 +1,9 @@
 import { z } from "zod";
 
-export const pickupAddress = "ДНР, г. Мариуполь, ул. Грушевского, 8";
+export const pickupAddress = "ДНР, г. Мариуполь, ул. Грушевского, 8 ПН-СБ с 10:00 до 19:00";
 export const supportTelegramUrl =
   process.env.NEXT_PUBLIC_SUPPORT_URL ?? process.env.SUPPORT_URL ?? "https://t.me/priemzakazovsuperbox";
+export const bulkyAttachmentLimit = 10;
 
 export const marketplaces = [
   {
@@ -227,7 +228,10 @@ export const createPaidPickupOrderSchema = z
 
     if (payload.marketplace === "5post" || payload.marketplace === "dpd" || payload.marketplace === "avito") {
       if (!payload.firstName) {
-        ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите ФИО" });
+        ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите имя" });
+      }
+      if (!payload.lastName) {
+        ctx.addIssue({ code: "custom", path: ["lastName"], message: "Укажите фамилию" });
       }
       if (!payload.trackingNumber) {
         ctx.addIssue({ code: "custom", path: ["trackingNumber"], message: "Укажите трек-номер" });
@@ -259,10 +263,10 @@ export const createPaidPickupOrderSchema = z
 
     if (payload.marketplace === "wildberries_premium") {
       if (!payload.firstName) {
-        ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите ФИО" });
+        ctx.addIssue({ code: "custom", path: ["firstName"], message: "Укажите имя" });
       }
       if (!payload.lastName) {
-        ctx.addIssue({ code: "custom", path: ["lastName"], message: "Укажите ФИО" });
+        ctx.addIssue({ code: "custom", path: ["lastName"], message: "Укажите фамилию" });
       }
       if (payload.totalAmount == null) {
         ctx.addIssue({ code: "custom", path: ["totalAmount"], message: "Укажите стоимость товара" });
@@ -401,6 +405,7 @@ export const orderSchema = z.object({
   productPreview: productPreviewSchema.nullable(),
   attachment: orderAttachmentSchema.nullable(),
   productAttachment: orderAttachmentSchema.nullable().default(null),
+  bulkyAttachments: z.array(orderAttachmentSchema).default([]),
   crmSyncState: crmSyncStateSchema.default("pending"),
   crmContactId: z.string().trim().min(1).nullable().default(null),
   crmDealId: z.string().trim().min(1).nullable().default(null),

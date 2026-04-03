@@ -12,9 +12,10 @@ const statusLabels: Record<OrderRecord["status"], string> = {
 interface OrderSummaryCardProps {
   order: OrderRecord;
   compact?: boolean;
+  hideSensitiveDetails?: boolean;
 }
 
-export function OrderSummaryCard({ order, compact = false }: OrderSummaryCardProps) {
+export function OrderSummaryCard({ order, compact = false, hideSensitiveDetails = false }: OrderSummaryCardProps) {
   const primaryStatusLabel = order.crmStageName ?? statusLabels[order.status];
   const showLocalStatus = Boolean(order.crmStageName);
   const customerName = [order.customer.firstName, order.customer.lastName].filter(Boolean).join(" ") || "Клиент";
@@ -41,7 +42,9 @@ export function OrderSummaryCard({ order, compact = false }: OrderSummaryCardPro
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)]">Заказ №{order.orderNumber}</p>
+          <div className="inline-flex rounded-full bg-[color:var(--surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--accent-strong)]">
+            Заказ №{order.orderNumber}
+          </div>
           <h3 className="font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)]">
             {primaryStatusLabel}
           </h3>
@@ -59,49 +62,53 @@ export function OrderSummaryCard({ order, compact = false }: OrderSummaryCardPro
         </div>
       </div>
 
-      <dl className={`mt-5 grid gap-4 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
-        <div className="rounded-[24px] bg-[color:var(--surface-subtle)] p-4">
-          <dt className="text-xs uppercase tracking-[0.24em] text-[color:var(--muted)]">Клиент</dt>
-          <dd className="mt-2 text-sm font-semibold text-[color:var(--foreground)]">{customerName}</dd>
-          <dd className="mt-1 text-sm text-[color:var(--muted)]">{order.customer.phone}</dd>
-        </div>
+      <dl className={`mt-5 grid gap-4 ${hideSensitiveDetails ? "" : compact ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+        {hideSensitiveDetails ? null : (
+          <div className="rounded-[24px] bg-[color:var(--surface-subtle)] p-4">
+            <dt className="text-xs uppercase tracking-[0.24em] text-[color:var(--muted)]">Клиент</dt>
+            <dd className="mt-2 text-sm font-semibold text-[color:var(--foreground)]">{customerName}</dd>
+            <dd className="mt-1 text-sm text-[color:var(--muted)]">{order.customer.phone}</dd>
+          </div>
+        )}
         <div className="rounded-[24px] bg-[color:var(--surface-subtle)] p-4">
           <dt className="text-xs uppercase tracking-[0.24em] text-[color:var(--muted)]">Логистика</dt>
           <dd className="mt-2 text-sm font-semibold text-[color:var(--foreground)]">{order.deliveryAddress ?? order.pickupAddress}</dd>
         </div>
-        <div className="rounded-[24px] bg-[color:var(--surface-subtle)] p-4">
-          <dt className="text-xs uppercase tracking-[0.24em] text-[color:var(--muted)]">
-            {isTrackingPickupOrder ? trackingPickupLabel : isHomeDelivery ? "Дата и слот" : "Сумма и товары"}
-          </dt>
-          <dd className="mt-2 text-sm font-semibold text-[color:var(--foreground)]">
-            {isTrackingPickupOrder
-              ? order.trackingNumber ?? order.shipmentNumber ?? "Уточняется"
-              : isHomeDelivery
-                ? order.deliveryDate ?? "Уточняется"
-                : order.totalAmount
-                  ? `${order.totalAmount.toLocaleString("ru-RU")} ₽`
-                  : "По ссылке"}
-          </dd>
-          <dd className="mt-1 text-sm text-[color:var(--muted)]">
-            {isTrackingPickupOrder
-              ? `Код: ${order.pickupCode ?? "не указан"}`
-              : isHomeDelivery
-                ? order.deliveryTimeSlot ?? "Интервал не выбран"
-                : order.itemCount
-                  ? `${order.itemCount} шт.`
-                  : "Уточняется"}
-          </dd>
-        </div>
+        {hideSensitiveDetails ? null : (
+          <div className="rounded-[24px] bg-[color:var(--surface-subtle)] p-4">
+            <dt className="text-xs uppercase tracking-[0.24em] text-[color:var(--muted)]">
+              {isTrackingPickupOrder ? trackingPickupLabel : isHomeDelivery ? "Дата и слот" : "Сумма и товары"}
+            </dt>
+            <dd className="mt-2 text-sm font-semibold text-[color:var(--foreground)]">
+              {isTrackingPickupOrder
+                ? order.trackingNumber ?? order.shipmentNumber ?? "Уточняется"
+                : isHomeDelivery
+                  ? order.deliveryDate ?? "Уточняется"
+                  : order.totalAmount
+                    ? `${order.totalAmount.toLocaleString("ru-RU")} ₽`
+                    : "По ссылке"}
+            </dd>
+            <dd className="mt-1 text-sm text-[color:var(--muted)]">
+              {isTrackingPickupOrder
+                ? `Код: ${order.pickupCode ?? "не указан"}`
+                : isHomeDelivery
+                  ? order.deliveryTimeSlot ?? "Интервал не выбран"
+                  : order.itemCount
+                    ? `${order.itemCount} шт.`
+                    : "Уточняется"}
+            </dd>
+          </div>
+        )}
       </dl>
 
-      {isHomeDelivery && order.relatedOrderNumbers.length > 0 ? (
+      {!hideSensitiveDetails && isHomeDelivery && order.relatedOrderNumbers.length > 0 ? (
         <div className="mt-5 rounded-[26px] bg-[color:var(--surface-subtle)] p-4">
           <p className="text-xs uppercase tracking-[0.22em] text-[color:var(--muted)]">Номера заказов</p>
           <p className="mt-2 text-sm font-semibold text-[color:var(--foreground)]">{order.relatedOrderNumbers.join(", ")}</p>
         </div>
       ) : null}
 
-      {order.productPreview ? (
+      {!hideSensitiveDetails && order.productPreview ? (
         <div className="mt-5 rounded-[26px] border border-[color:var(--line)] bg-white p-5">
           <p className="text-xs uppercase tracking-[0.22em] text-[color:var(--muted)]">Распознанный товар</p>
           <p className="mt-2 text-lg font-semibold text-[color:var(--foreground)]">{order.productPreview.title}</p>
@@ -109,7 +116,7 @@ export function OrderSummaryCard({ order, compact = false }: OrderSummaryCardPro
         </div>
       ) : null}
 
-      {order.sourceUrl ? (
+      {!hideSensitiveDetails && order.sourceUrl ? (
         <div className="mt-5 rounded-[26px] bg-[color:var(--surface-subtle)] p-4">
           <p className="text-xs uppercase tracking-[0.22em] text-[color:var(--muted)]">Ссылка на товар</p>
           <a href={order.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 block break-all text-sm font-semibold text-[color:var(--accent-strong)]">

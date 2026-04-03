@@ -15,6 +15,7 @@ import {
 } from "react";
 
 import {
+  bulkyAttachmentLimit,
   createHomeDeliveryOrderSchema,
   homeDeliveryTimeSlotValues,
   createPaidPickupOrderSchema,
@@ -50,7 +51,6 @@ type SpecialPickupId = "courier" | "bulky";
 type PickupState = {
   step: 1 | 2 | 3;
   marketplace: MarketplaceId | SpecialPickupId | "";
-  fullName: string;
   firstName: string;
   lastName: string;
   phone: string;
@@ -62,6 +62,7 @@ type PickupState = {
   pickupCode: string;
   sourceUrl: string;
   attachment: File | null;
+  bulkyAttachments: File[];
   productAttachment: File | null;
   result: OrderRecord | null;
   errors: Record<string, string>;
@@ -150,6 +151,13 @@ const paidFieldCopyByMarketplace: Partial<Record<MarketplaceId | SpecialPickupId
     attachmentHint: "PNG, JPG или PDF до 10 MB.",
     attachmentRequiredError: "Прикрепите QR, штрих-код или скриншот товара.",
   },
+  bulky: {
+    itemCountLabel: "Количество товаров",
+    totalAmountLabel: "Итоговая цена всех товаров",
+    attachmentLabel: "QR / штрих-код заказа / скриншот товара или груза",
+    attachmentHint: "PNG, JPG или PDF до 10 MB. До 10 файлов.",
+    attachmentRequiredError: "Прикрепите QR, штрих-код или скриншот товара.",
+  },
 };
 
 function getPaidFieldCopy(marketplace: PickupState["marketplace"]) {
@@ -158,20 +166,6 @@ function getPaidFieldCopy(marketplace: PickupState["marketplace"]) {
   }
 
   return paidFieldCopyByMarketplace[marketplace as MarketplaceId | SpecialPickupId] ?? defaultPaidFieldCopy;
-}
-
-function splitFullName(fullName: string) {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return { firstName: "", lastName: "" };
-  }
-  if (parts.length === 1) {
-    return { firstName: parts[0], lastName: "" };
-  }
-  return {
-    firstName: parts.slice(1).join(" "),
-    lastName: parts[0],
-  };
 }
 
 function NoticeBox({ children, collapsible = false }: { children: ReactNode; collapsible?: boolean }) {
@@ -211,7 +205,7 @@ const actionCards: Array<{
   {
     id: "pickup_paid",
     eyebrow: "24 часа",
-    title: "Оплаченный заказ",
+    title: "Самостоятельный заказ",
     description: "Загрузите QR или штрих-код и проведите уже оплаченную покупку отдельно.",
     icon: "◎",
     featured: true,
@@ -219,7 +213,7 @@ const actionCards: Array<{
   {
     id: "pickup_standard",
     eyebrow: "Пункт выдачи",
-    title: "Сделать заказ",
+    title: "Сделать заказ по ссылке",
     description: "Оформите новую доставку со ссылкой на товар и прозрачной структурой для CRM.",
     icon: "+",
     accent: "soft",
@@ -251,7 +245,6 @@ function createPickupState(): PickupState {
   return {
     step: 1,
     marketplace: "",
-    fullName: "",
     firstName: "",
     lastName: "",
     phone: "",
@@ -263,6 +256,7 @@ function createPickupState(): PickupState {
     pickupCode: "",
     sourceUrl: "",
     attachment: null,
+    bulkyAttachments: [],
     productAttachment: null,
     result: null,
     errors: {},
@@ -414,6 +408,90 @@ function FileUploadCard({
   );
 }
 
+function MultiFileUploadCard({
+  id,
+  files,
+  accept,
+  maxFiles,
+  onChange,
+}: {
+  id: string;
+  files: File[];
+  accept?: string;
+  maxFiles: number;
+  onChange: (files: File[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const remaining = Math.max(maxFiles - files.length, 0);
+  const summary =
+    files.length === 0
+      ? "Поддерживаются изображения и PDF."
+      : remaining > 0
+        ? `Загружено ${files.length} из ${maxFiles}. Можно добавить ещё ${remaining}.`
+        : `Загружено ${files.length} из ${maxFiles}. Лимит достигнут.`;
+  const previewNames =
+    files.length > 0
+      ? files
+          .slice(0, 3)
+          .map((file) => file.name)
+          .join(", ")
+      : null;
+
+  const openFilePicker = () => inputRef.current?.click();
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={(event) => {
+        if (event.target === inputRef.current) {
+          return;
+        }
+
+        event.preventDefault();
+        openFilePicker();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openFilePicker();
+        }
+      }}
+      className="relative flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-[color:var(--line)] bg-[color:var(--surface-subtle)] px-6 py-8 text-center"
+    >
+      <input
+        ref={inputRef}
+        id={id}
+        type="file"
+        multiple
+        accept={accept}
+        className="sr-only"
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => {
+          onChange(Array.from(event.target.files ?? []));
+          event.currentTarget.value = "";
+        }}
+      />
+      <span className="absolute right-5 top-5 rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[color:var(--accent-strong)] shadow-[0_10px_24px_rgba(84,58,128,0.08)]">
+        {files.length}/{maxFiles}
+      </span>
+      <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-2xl text-[color:var(--accent-strong)]">
+        ↑
+      </span>
+      <span className="mt-5 text-lg font-semibold text-[color:var(--foreground)]">
+        {files.length > 0 ? `Загружено ${files.length} файлов` : "Нажмите для загрузки"}
+      </span>
+      <span className="mt-2 text-sm text-[color:var(--muted)]">{summary}</span>
+      {previewNames ? (
+        <span className="mt-3 max-w-full truncate text-xs text-[color:var(--muted)]">
+          {previewNames}
+          {files.length > 3 ? ` и ещё ${files.length - 3}` : ""}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
@@ -560,7 +638,7 @@ function SuccessState({
       <p className="mt-3 text-lg font-semibold text-[color:var(--muted)]">№ {order.orderNumber}</p>
       <p className="mx-auto mt-4 max-w-2xl text-base leading-8 text-[color:var(--muted)]">{description}</p>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
+      <div className="mt-8 grid items-start gap-4 md:grid-cols-[1.15fr_0.85fr]">
         <div className="soft-card rounded-[30px] p-6 text-left">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--accent-strong)]">
             {order.crmSyncState === "failed" ? "CRM временно недоступна" : "Ваш заказ в обработке"}
@@ -571,16 +649,9 @@ function SuccessState({
               : "Мы уже готовим ваш заказ к следующему этапу. Статус можно проверять без Telegram, прямо в интерфейсе."}
           </p>
         </div>
-        <div className="grid gap-4">
-          <div className="soft-card rounded-[30px] p-6 text-left">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Ожидаемое время</p>
-            <p className="mt-3 font-[family-name:var(--font-display)] text-4xl leading-none text-[color:var(--accent-strong)]">15–25</p>
-            <p className="mt-1 text-sm text-[color:var(--muted)]">минут до следующего статуса</p>
-          </div>
-          <div className="soft-card rounded-[30px] p-6 text-left">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Маркетплейс</p>
-            <p className="mt-3 text-lg font-semibold text-[color:var(--foreground)]">{humanizeMarketplace(order.marketplace)}</p>
-          </div>
+        <div className="soft-card rounded-[30px] p-6 text-left">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Маркетплейс</p>
+          <p className="mt-3 text-lg font-semibold text-[color:var(--foreground)]">{humanizeMarketplace(order.marketplace)}</p>
         </div>
       </div>
 
@@ -596,6 +667,12 @@ function SuccessState({
   );
 }
 
+function isPhoneLookupQuery(query: string) {
+  const trimmed = query.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  return /^[+\d\s()-]+$/.test(trimmed) && (digits.length === 10 || digits.length === 11);
+}
+
 export function SuperboxApp() {
   const [activeFlow, setActiveFlow] = useState<FlowId>("overview");
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
@@ -604,6 +681,7 @@ export function SuperboxApp() {
   const [delivery, setDelivery] = useState(createDeliveryState);
   const [lookupNumber, setLookupNumber] = useState("");
   const [lookupOrders, setLookupOrders] = useState<OrderRecord[]>([]);
+  const [lookupHideSensitiveDetails, setLookupHideSensitiveDetails] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [cancelNumber, setCancelNumber] = useState("");
   const [cancelCandidate, setCancelCandidate] = useState<OrderRecord | null>(null);
@@ -622,6 +700,48 @@ export function SuperboxApp() {
       : "https://example.com/product/...";
 
   const updatePickup = (patch: Partial<PickupState>) => setActivePickup((current) => ({ ...current, ...patch }));
+  const setBulkyAttachments = (selectedFiles: File[]) =>
+    setActivePickup((current) => {
+      const combined = [...current.bulkyAttachments];
+
+      for (const file of selectedFiles) {
+        const duplicate = combined.some(
+          (existing) =>
+            existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified,
+        );
+        if (!duplicate) {
+          combined.push(file);
+        }
+      }
+
+      const nextFiles = combined.slice(0, bulkyAttachmentLimit);
+      const nextErrors = { ...current.errors };
+      if (combined.length > bulkyAttachmentLimit) {
+        nextErrors.attachment = `Можно загрузить не более ${bulkyAttachmentLimit} файлов.`;
+      } else {
+        delete nextErrors.attachment;
+      }
+
+      return {
+        ...current,
+        attachment: nextFiles[0] ?? null,
+        bulkyAttachments: nextFiles,
+        errors: nextErrors,
+      };
+    });
+  const removeBulkyAttachment = (index: number) =>
+    setActivePickup((current) => {
+      const nextFiles = current.bulkyAttachments.filter((_, fileIndex) => fileIndex !== index);
+      const nextErrors = { ...current.errors };
+      delete nextErrors.attachment;
+
+      return {
+        ...current,
+        attachment: nextFiles[0] ?? null,
+        bulkyAttachments: nextFiles,
+        errors: nextErrors,
+      };
+    });
 
   const openFlow = (flow: FlowId) => {
     setActiveFlow(flow);
@@ -681,7 +801,7 @@ export function SuperboxApp() {
       <NoticeBox collapsible>
         <p><strong>❗️ Оформление заказов 5POST</strong></p>
         <p className="mt-1">📍 Адрес доставки: г. Ростов-на-Дону, ул. Таганрогская, 118.</p>
-        <p className="mt-1">Получатель: <strong>ваши ФИО и номер телефона</strong>.</p>
+        <p className="mt-1">Получатель: <strong>ваши имя, фамилия и номер телефона</strong>.</p>
         <p className="mt-2 font-semibold">ℹ️ Подробная инструкция:</p>
         <p className="mt-1">1. Отправителю указать правильный адрес терминала: г. Ростов-на-Дону, ул. Таганрогская, 118.</p>
         <p className="mt-1">2. При отправлении указать свои данные как получателя груза. Пример: <em>Иванов Иван Иванович, тел: +79490000000</em></p>
@@ -692,7 +812,7 @@ export function SuperboxApp() {
       <NoticeBox collapsible>
         <p><strong>❗️ Оформление заказов DPD</strong></p>
         <p className="mt-1">📍 Адрес доставки: г. Ростов-на-Дону, ул. Таганрогская, 132/3.</p>
-        <p className="mt-1">Получатель: <strong>ваши ФИО и номер телефона</strong>.</p>
+        <p className="mt-1">Получатель: <strong>ваши имя, фамилия и номер телефона</strong>.</p>
         <p className="mt-2 font-semibold">ℹ️ Подробная инструкция:</p>
         <p className="mt-1">1. Отправителю указать правильный адрес терминала: г. Ростов-на-Дону, ул. Таганрогская, 132/3.</p>
         <p className="mt-1">2. При отправлении указать свои данные как получателя груза. Пример: <em>Иванов Иван Иванович, тел: +79490000000</em></p>
@@ -733,13 +853,13 @@ export function SuperboxApp() {
     detmir: (
       <NoticeBox>
         <p>📍 Адрес: г. Ростов-на-Дону, ул. Таганрогская, 114И, ТЦ «Джанфида».</p>
-        <p className="mt-1">Получатель: <strong>ваши ФИО и номер телефона</strong>.</p>
+        <p className="mt-1">Получатель: <strong>ваши имя, фамилия и номер телефона</strong>.</p>
       </NoticeBox>
     ),
     letual: (
       <NoticeBox>
         <p>📍 Адрес: г. Ростов-на-Дону, ул. Арсенальная 1 Вавилова (71Ж/2).</p>
-        <p className="mt-1">Получатель: <strong>ваши ФИО и номер телефона</strong>.</p>
+        <p className="mt-1">Получатель: <strong>ваши имя, фамилия и номер телефона</strong>.</p>
         <p className="mt-1">
           <span className="font-semibold">Стоимость доставки:</span>{" "}
           <span className="font-semibold">10%</span> от стоимости заказа
@@ -749,7 +869,7 @@ export function SuperboxApp() {
     goldapple: (
       <NoticeBox>
         <p>📍 Адрес: г. Ростов-на-Дону, ул. Арсенальная 1 Вавилова (71Ж/2).</p>
-        <p className="mt-1">Получатель: <strong>ваши ФИО и номер телефона</strong>.</p>
+        <p className="mt-1">Получатель: <strong>ваши имя, фамилия и номер телефона</strong>.</p>
         <p className="mt-1">
           <span className="font-semibold">Стоимость доставки:</span>{" "}
           <span className="font-semibold">10%</span> от стоимости заказа
@@ -759,7 +879,7 @@ export function SuperboxApp() {
     lamoda: (
       <NoticeBox>
         <p>📍 Адрес ПВЗ: г. Ростов-на-Дону, ул. Таганрогская, 86.</p>
-        <p className="mt-1">Получатель: <strong>ваши ФИО и номер телефона</strong>.</p>
+        <p className="mt-1">Получатель: <strong>ваши имя, фамилия и номер телефона</strong>.</p>
         <p className="mt-1">
           <span className="font-semibold">Стоимость доставки:</span>{" "}
           <span className="font-semibold">10%</span> от стоимости заказа
@@ -821,11 +941,10 @@ export function SuperboxApp() {
     const isWildberriesPremiumPaid = activeFlow === "pickup_paid" && activePickup.marketplace === "wildberries_premium";
     const isCourierPaid = activeFlow === "pickup_paid" && activePickup.marketplace === "courier";
     const isBulkyPaid = activeFlow === "pickup_paid" && activePickup.marketplace === "bulky";
-    const isFullNameTrackingPaid =
+    const isTrackingCodePaid =
       activeFlow === "pickup_paid" &&
       (activePickup.marketplace === "5post" || activePickup.marketplace === "dpd" || activePickup.marketplace === "avito");
-    const usesTrackingPickupFields = isCdekPaid || isFullNameTrackingPaid;
-    const fullNameTrackingCustomer = splitFullName(activePickup.fullName);
+    const usesTrackingPickupFields = isCdekPaid || isTrackingCodePaid;
     const parsed =
       activeFlow === "pickup_standard"
         ? createPickupStandardOrderSchema.safeParse({
@@ -841,8 +960,8 @@ export function SuperboxApp() {
         : createPaidPickupOrderSchema.safeParse({
             orderType: activeFlow,
             marketplace: activePickup.marketplace,
-            firstName: isFullNameTrackingPaid || isWildberriesPremiumPaid ? fullNameTrackingCustomer.firstName : activePickup.firstName,
-            lastName: isFullNameTrackingPaid || isWildberriesPremiumPaid ? fullNameTrackingCustomer.lastName : activePickup.lastName,
+            firstName: activePickup.firstName,
+            lastName: activePickup.lastName,
             phone: activePickup.phone,
             itemCount: usesTrackingPickupFields || isWildberriesPremiumPaid || isBulkyPaid ? undefined : Number(activePickup.itemCount),
             totalAmount: usesTrackingPickupFields || isBulkyPaid ? undefined : Number(activePickup.totalAmount),
@@ -856,16 +975,8 @@ export function SuperboxApp() {
     if (!parsed.success) {
       for (const issue of parsed.error.issues) nextErrors[String(issue.path[0] ?? "form")] = issue.message;
     }
-    if (isFullNameTrackingPaid && nextErrors.firstName) {
-      nextErrors.fullName = "Укажите ФИО";
-      delete nextErrors.firstName;
-    }
-    if (isWildberriesPremiumPaid && (nextErrors.firstName || nextErrors.lastName)) {
-      nextErrors.fullName = "Укажите ФИО";
-      delete nextErrors.firstName;
-      delete nextErrors.lastName;
-    }
-    if (activeFlow === "pickup_paid" && !usesTrackingPickupFields && !activePickup.attachment) nextErrors.attachment = paidFieldCopy.attachmentRequiredError;
+    if (isBulkyPaid && activePickup.bulkyAttachments.length === 0) nextErrors.attachment = paidFieldCopy.attachmentRequiredError;
+    if (activeFlow === "pickup_paid" && !usesTrackingPickupFields && !isBulkyPaid && !activePickup.attachment) nextErrors.attachment = paidFieldCopy.attachmentRequiredError;
     if (isWildberriesPremiumPaid && !activePickup.productAttachment) nextErrors.productAttachment = "Прикрепите скриншот товара.";
     if (Object.keys(nextErrors).length > 0) {
       updatePickup({ errors: nextErrors });
@@ -877,8 +988,8 @@ export function SuperboxApp() {
         const response = await createPickupOrder({
           orderType: activeFlow as "pickup_standard" | "pickup_paid",
           marketplace: activePickup.marketplace,
-          firstName: isFullNameTrackingPaid || isWildberriesPremiumPaid ? fullNameTrackingCustomer.firstName : activePickup.firstName,
-          lastName: isFullNameTrackingPaid || isWildberriesPremiumPaid ? fullNameTrackingCustomer.lastName : activePickup.lastName,
+          firstName: activePickup.firstName,
+          lastName: activePickup.lastName,
           phone: activePickup.phone,
           itemCount: usesTrackingPickupFields || isWildberriesPremiumPaid || isBulkyPaid ? undefined : activePickup.itemCount,
           totalAmount: usesTrackingPickupFields || isBulkyPaid ? undefined : activePickup.totalAmount,
@@ -887,7 +998,8 @@ export function SuperboxApp() {
           senderName: isCourierPaid || isBulkyPaid ? activePickup.senderName : undefined,
           pickupCode: usesTrackingPickupFields || isDetmirPaid || isCourierPaid || isBulkyPaid ? activePickup.pickupCode : undefined,
           sourceUrl: activeFlow === "pickup_standard" ? activePickup.sourceUrl : undefined,
-          attachment: activeFlow === "pickup_paid" ? activePickup.attachment ?? undefined : undefined,
+          attachment: activeFlow === "pickup_paid" && !isBulkyPaid ? activePickup.attachment ?? undefined : undefined,
+          bulkyAttachments: activeFlow === "pickup_paid" && isBulkyPaid ? activePickup.bulkyAttachments : undefined,
           productAttachment: activeFlow === "pickup_paid" && isWildberriesPremiumPaid ? activePickup.productAttachment ?? undefined : undefined,
         });
         setActivePickup((current) => ({ ...current, step: 3, result: response.order, errors: {} }));
@@ -932,7 +1044,7 @@ export function SuperboxApp() {
     });
   };
 
-  const submitLookup = async () => {
+  const submitLookupLegacy = async () => {
     const query = deferredLookupNumber.trim();
     const parsed = {
       success: query.length > 0,
@@ -951,6 +1063,28 @@ export function SuperboxApp() {
         setLookupError(null);
       } catch (error) {
         setLookupOrders([]);
+        setLookupError(error instanceof Error ? error.message : "Заказ не найден");
+      }
+    });
+  };
+
+  const submitLookup = async () => {
+    const query = deferredLookupNumber.trim();
+    const isPhoneLookup = isPhoneLookupQuery(query);
+    if (query.length === 0) {
+      setLookupError("Введите номер заказа, трек-номер или телефон.");
+      return;
+    }
+
+    startUiTransition(async () => {
+      try {
+        const response = await lookupTrackedOrder(query);
+        setLookupOrders(response.orders);
+        setLookupHideSensitiveDetails(isPhoneLookup);
+        setLookupError(null);
+      } catch (error) {
+        setLookupOrders([]);
+        setLookupHideSensitiveDetails(false);
         setLookupError(error instanceof Error ? error.message : "Заказ не найден");
       }
     });
@@ -1050,7 +1184,7 @@ export function SuperboxApp() {
                     Оформление доставки в <span className="text-[color:var(--accent)] italic">пару кликов</span>
                   </>
                 }
-                description="Выберите действие и оформите заказ быстро и удобно. Мы собрали все сценарии в одном веб-интерфейсе: от поиска заказа до доставки по ссылке."
+                description="Оформляйте заказы с доставкой в Мариуполь с максимальным комфортом! Надежная выдача товаров из маркетплейсов и транспортных компаний. Приятный бонус - бесплатный возврат, если товар не подошел!"
               />
             </div>
           </div>
@@ -1107,9 +1241,9 @@ export function SuperboxApp() {
     const isWildberriesPremiumPaid = paid && activePickup.marketplace === "wildberries_premium";
     const isCourierPaid = paid && activePickup.marketplace === "courier";
     const isBulkyPaid = paid && activePickup.marketplace === "bulky";
-    const isFullNameTrackingPaid =
+    const isTrackingCodePaid =
       paid && (activePickup.marketplace === "5post" || activePickup.marketplace === "dpd" || activePickup.marketplace === "avito");
-    const usesTrackingPickupFields = isCdekPaid || isFullNameTrackingPaid;
+    const usesTrackingPickupFields = isCdekPaid || isTrackingCodePaid;
     const isSpecial = paid && (activePickup.marketplace === "courier" || activePickup.marketplace === "bulky");
     const paidFieldCopy = getPaidFieldCopy(activePickup.marketplace);
     const currentMarketplace = activePickup.marketplace
@@ -1199,9 +1333,9 @@ export function SuperboxApp() {
             paid
               ? isCdekPaid
                 ? "Укажите имя, фамилию, телефон и заполните трек-номер или номер отправления ИМ. Код получения и скриншот отправления можно добавить по желанию."
-                : isFullNameTrackingPaid
-                  ? "Укажите ФИО, телефон, трек-номер и код получения. Скриншот отправления можно приложить по желанию."
-                : "Заполните данные клиента и загрузите QR или штрих-код. Мы сохраним заказ отдельным сценарием без смешивания со стандартной доставкой."
+                : isTrackingCodePaid
+                  ? "Укажите имя, фамилию, телефон, трек-номер и код получения. Скриншот отправления можно приложить по желанию."
+                  : "Заполните данные клиента и загрузите QR или штрих-код. Мы сохраним заказ отдельным сценарием без смешивания со стандартной доставкой."
               : "Заполните форму ниже, чтобы мы могли обработать заказ с максимальной точностью"
           }
           stepLabel={pickupStepLabel}
@@ -1219,20 +1353,14 @@ export function SuperboxApp() {
             <div className="rounded-[24px] bg-[color:var(--surface-subtle)] px-5 py-4 text-sm leading-7 text-[color:var(--muted)]">
               Выбран маркетплейс: <span className="font-semibold text-[color:var(--foreground)]">{currentMarketplace}</span>
             </div>
-            {isFullNameTrackingPaid || isWildberriesPremiumPaid ? (
-              <Field label="ФИО" htmlFor={`${activeFlow}-fullName`} error={activePickup.errors.fullName}>
-                <Input id={`${activeFlow}-fullName`} autoFocus placeholder="Введите ФИО" value={activePickup.fullName} onChange={(event) => updatePickup({ fullName: event.target.value })} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Имя" htmlFor={`${activeFlow}-firstName`} error={activePickup.errors.firstName}>
+                <Input id={`${activeFlow}-firstName`} autoFocus placeholder="Введите имя" value={activePickup.firstName} onChange={(event) => updatePickup({ firstName: event.target.value })} />
               </Field>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Имя" htmlFor={`${activeFlow}-firstName`} error={activePickup.errors.firstName}>
-                  <Input id={`${activeFlow}-firstName`} autoFocus placeholder="Введите имя" value={activePickup.firstName} onChange={(event) => updatePickup({ firstName: event.target.value })} />
-                </Field>
-                <Field label="Фамилия" htmlFor={`${activeFlow}-lastName`} error={activePickup.errors.lastName}>
-                  <Input id={`${activeFlow}-lastName`} placeholder="Введите фамилию" value={activePickup.lastName} onChange={(event) => updatePickup({ lastName: event.target.value })} />
-                </Field>
-              </div>
-            )}
+              <Field label="Фамилия" htmlFor={`${activeFlow}-lastName`} error={activePickup.errors.lastName}>
+                <Input id={`${activeFlow}-lastName`} placeholder="Введите фамилию" value={activePickup.lastName} onChange={(event) => updatePickup({ lastName: event.target.value })} />
+              </Field>
+            </div>
 
             <Field label="Телефон" htmlFor={`${activeFlow}-phone`} hint="Формат +7XXXXXXXXXX" error={activePickup.errors.phone}>
               <Input id={`${activeFlow}-phone`} placeholder="+7 (___) ___-__-__" value={activePickup.phone} onChange={(event) => updatePickup({ phone: event.target.value })} />
@@ -1359,7 +1487,7 @@ export function SuperboxApp() {
                   />
                 </Field>
               </>
-            ) : isFullNameTrackingPaid ? (
+            ) : isTrackingCodePaid ? (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Укажите трек-номер" htmlFor={`${activeFlow}-trackingNumber`} error={activePickup.errors.trackingNumber}>
@@ -1635,12 +1763,28 @@ export function SuperboxApp() {
                       hint={paidFieldCopy.attachmentHint}
                       error={activePickup.errors.attachment}
                     >
-                      <FileUploadCard
+                      <MultiFileUploadCard
                         id={`${activeFlow}-attachment`}
                         accept=".jpg,.jpeg,.png,.pdf"
-                        file={activePickup.attachment}
-                        onChange={(file) => updatePickup({ attachment: file })}
+                        files={activePickup.bulkyAttachments}
+                        maxFiles={bulkyAttachmentLimit}
+                        onChange={setBulkyAttachments}
                       />
+                      {activePickup.bulkyAttachments.length > 0 ? (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {activePickup.bulkyAttachments.map((file, index) => (
+                            <button
+                              key={`${file.name}-${file.lastModified}-${index}`}
+                              type="button"
+                              onClick={() => removeBulkyAttachment(index)}
+                              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--line)] bg-white px-3 py-1.5 text-xs font-medium text-[color:var(--foreground)] shadow-[0_10px_24px_rgba(84,58,128,0.05)]"
+                            >
+                              <span className="max-w-[220px] truncate">{file.name}</span>
+                              <span className="text-[color:var(--muted)]">×</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </Field>
                   </>
                 ) : (
@@ -1955,11 +2099,11 @@ export function SuperboxApp() {
                 </p>
               </div>
               <div className="rounded-full bg-[color:var(--surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--accent-strong)]">
-                {lookupOrders[0]?.customer.phone}
+                {lookupHideSensitiveDetails ? "Поиск по телефону" : lookupOrders[0]?.customer.phone}
               </div>
             </div>
             {lookupOrders.map((order) => (
-              <OrderSummaryCard key={order.id} order={order} compact />
+              <OrderSummaryCard key={order.id} order={order} compact hideSensitiveDetails={lookupHideSensitiveDetails} />
             ))}
           </div>
         ) : (

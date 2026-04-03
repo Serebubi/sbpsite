@@ -31,6 +31,7 @@ const sampleOrder: OrderRecord = {
   productPreview: null,
   attachment: null,
   productAttachment: null,
+  bulkyAttachments: [],
   crmSyncState: "pending",
   crmContactId: null,
   crmDealId: null,
@@ -90,7 +91,7 @@ export default function DesignCapturePage() {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--accent-strong)]">SUPERBOX design capture</p>
               <h1 className="font-[family-name:var(--font-display)] text-4xl text-[color:var(--foreground)]">Коммерческий UI handoff для MVP</h1>
               <p className="max-w-3xl text-sm leading-7 text-[color:var(--muted)]">
-                Один длинный холст с ключевыми состояниями интерфейса: домашний экран, карточки маркетплейсов, стандартный заказ через ссылку, оплаченный заказ через QR, доставка на дом и status/cancel flow.
+                Один длинный холст с ключевыми состояниями интерфейса: домашний экран, карточки маркетплейсов, заказ по ссылке, самостоятельный заказ через QR, доставка на дом и status/cancel flow.
               </p>
             </div>
           </div>
@@ -105,9 +106,9 @@ export default function DesignCapturePage() {
       <ShowcaseCard eyebrow="Home" title="Главный экран и вход в сценарии" description="Все действия собраны в одной панели: пользователь сразу видит адрес, шесть основных действий и ориентиры по продукту.">
         <div className="grid gap-4 md:grid-cols-3">
           {[
-            ["Сделать заказ", "Новый заказ с отправкой ссылки на товар."],
+            ["Сделать заказ по ссылке", "Новый заказ с отправкой ссылки на товар."],
             ["Найти заказ", "Проверка по numeric order number."],
-            ["Оплаченный заказ", "QR/штрих-код и предупреждение по сроку действия."],
+            ["Самостоятельный заказ", "QR/штрих-код и предупреждение по сроку действия."],
             ["Доставка на дом", "Номера заказов, адрес, дата и выбор временного интервала для курьера."],
             ["Отменить заказ", "Проверка перед сменой статуса."],
             ["Поддержка", "Переход в Telegram без поиска контакта."],
@@ -139,7 +140,7 @@ export default function DesignCapturePage() {
       </ShowcaseCard>
 
       <div className="grid gap-8 xl:grid-cols-2">
-        <ShowcaseCard eyebrow="Pickup standard" title="Сделать заказ через ссылку" description="Обновленный flow: стандартный заказ теперь принимает ссылку на товар вместо QR.">
+        <ShowcaseCard eyebrow="Pickup standard" title="Сделать заказ по ссылке" description="Обновленный flow: стандартный заказ теперь принимает ссылку на товар вместо QR.">
           <div className="rounded-[28px] border border-[color:var(--line)] bg-white/90 p-5">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-[20px] bg-[color:var(--surface-soft)] p-4">
@@ -157,7 +158,7 @@ export default function DesignCapturePage() {
           </div>
         </ShowcaseCard>
 
-        <ShowcaseCard eyebrow="Paid order" title="Оплаченный заказ через QR" description="Оплаченный сценарий сохраняет предупреждение по времени действия QR и file-upload состояние.">
+        <ShowcaseCard eyebrow="Paid order" title="Самостоятельный заказ" description="Сценарий самостоятельного заказа сохраняет предупреждение по времени действия QR и file-upload состояние.">
           <div className="space-y-4 rounded-[28px] border border-[color:var(--line)] bg-white/90 p-5">
             <div className="rounded-[24px] border border-[color:rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] p-5 text-sm leading-7 text-[color:var(--foreground)]">
               QR/штрих-код действует 24 часа. Не отправляйте код с 18:00 до 01:00.

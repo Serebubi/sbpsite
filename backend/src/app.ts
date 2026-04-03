@@ -16,7 +16,14 @@ export function createApp() {
 
   app.use(
     cors({
-      origin: config.apiOrigin,
+      origin: (origin, callback) => {
+        if (!origin || config.apiOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new HttpError(403, "Origin not allowed"));
+      },
     }),
   );
   app.use(express.json({ limit: "1mb" }));

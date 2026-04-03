@@ -39,6 +39,7 @@ export class OrderService {
     attachmentUrl: string | null,
     productAttachment: OrderRecord["productAttachment"] = null,
     productAttachmentUrl: string | null = null,
+    bulkyAttachments: OrderRecord["bulkyAttachments"] = [],
   ) {
     const orders = await this.repository.listOrders();
     const nextNumber = String(
@@ -104,6 +105,7 @@ export class OrderService {
       productPreview: "productPreview" in payload ? payload.productPreview : null,
       attachment,
       productAttachment,
+      bulkyAttachments,
       crmSyncState: "pending",
       crmContactId: null,
       crmDealId: null,

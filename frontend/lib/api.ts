@@ -25,6 +25,7 @@ export async function createPickupOrder(payload: {
   pickupCode?: string;
   sourceUrl?: string;
   attachment?: File;
+  bulkyAttachments?: File[];
   productAttachment?: File;
 }) {
   const formData = new FormData();
@@ -58,6 +59,11 @@ export async function createPickupOrder(payload: {
   }
   if (payload.attachment) {
     formData.set("attachment", payload.attachment);
+  }
+  if (payload.bulkyAttachments) {
+    for (const file of payload.bulkyAttachments) {
+      formData.append("bulkyAttachments", file);
+    }
   }
   if (payload.productAttachment) {
     formData.set("productAttachment", payload.productAttachment);

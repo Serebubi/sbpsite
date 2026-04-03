@@ -2,6 +2,7 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
+import { parseCorsOrigins } from "../src/config.js";
 import { mapOrderToBitrixPayload } from "../src/services/bitrix-service.js";
 import { previewMarketplaceLink } from "../src/services/parser-service.js";
 
@@ -37,6 +38,14 @@ describe("backend api", () => {
   it("returns fallback preview for unsupported domain", async () => {
     const result = await previewMarketplaceLink("wildberries", "https://example.com/item/test-item");
     expect(result.mode).toBe("fallback");
+  });
+
+  it("parses multiple cors origins from env format", () => {
+    expect(parseCorsOrigins("https://site-1.example, https://site-2.example , https://site-3.example")).toEqual([
+      "https://site-1.example",
+      "https://site-2.example",
+      "https://site-3.example",
+    ]);
   });
 
   it("creates an order, syncs it to Bitrix, and refreshes status from the deal stage", async () => {
@@ -396,7 +405,8 @@ describe("backend api", () => {
       .post("/orders/create")
       .field("orderType", "pickup_paid")
       .field("marketplace", "5post")
-      .field("firstName", "Ivan Ivanovich")
+      .field("firstName", "Ivan")
+      .field("lastName", "Ivanov")
       .field("phone", "+79997776655")
       .field("trackingNumber", "5POST-123456")
       .field("pickupCode", "4455");
@@ -434,7 +444,8 @@ describe("backend api", () => {
       .post("/orders/create")
       .field("orderType", "pickup_paid")
       .field("marketplace", "dpd")
-      .field("firstName", "Ivan Ivanovich")
+      .field("firstName", "Ivan")
+      .field("lastName", "Ivanov")
       .field("phone", "+79997776655")
       .field("trackingNumber", "DPD-123456")
       .field("pickupCode", "5566");
@@ -472,7 +483,8 @@ describe("backend api", () => {
       .post("/orders/create")
       .field("orderType", "pickup_paid")
       .field("marketplace", "avito")
-      .field("firstName", "Ivan Ivanovich")
+      .field("firstName", "Ivan")
+      .field("lastName", "Ivanov")
       .field("phone", "+79997776655")
       .field("trackingNumber", "AVITO-123456")
       .field("pickupCode", "6677");
@@ -681,13 +693,17 @@ describe("backend api", () => {
       .field("senderName", "OZON")
       .field("trackingNumber", "BULKY-42")
       .field("pickupCode", "7788")
-      .attach("attachment", Buffer.from("test file"), "bulky-order.png");
+      .attach("bulkyAttachments", Buffer.from("test file"), "bulky-order.png")
+      .attach("bulkyAttachments", Buffer.from("second test file"), "bulky-order-2.png");
 
     expect(createResponse.status).toBe(201);
     expect(createResponse.body.order.marketplace).toBe("bulky");
     expect(createResponse.body.order.senderName).toBe("OZON");
     expect(createResponse.body.order.trackingNumber).toBe("BULKY-42");
     expect(createResponse.body.order.pickupCode).toBe("7788");
+    expect(createResponse.body.order.bulkyAttachments).toHaveLength(2);
+    expect(createResponse.body.order.bulkyAttachments[0].fileName).toBe("bulky-order.png");
+    expect(createResponse.body.order.bulkyAttachments[1].fileName).toBe("bulky-order-2.png");
   });
 
   it("creates a courier paid order with sender name and totals", async () => {
@@ -762,6 +778,7 @@ describe("backend api", () => {
       productPreview: null,
       attachment: null,
       productAttachment: null,
+      bulkyAttachments: [],
       crmSyncState: "pending",
       crmContactId: null,
       crmDealId: null,
