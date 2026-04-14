@@ -416,10 +416,10 @@ function HeroDeliveryVisual() {
   return (
     <div aria-hidden="true" className="relative w-[min(44rem,44vw)] max-w-full pr-2">
       <Image
-        src="/hero-companies-collage-photoroom.png"
+        src="/hero-home-replacement.png"
         alt=""
-        width={1280}
-        height={853}
+        width={1536}
+        height={1024}
         sizes="(min-width: 1280px) 42vw, (min-width: 1024px) 38vw, 0px"
         className="h-auto w-full object-contain [filter:drop-shadow(0_28px_44px_rgba(181,151,232,0.24))]"
         priority
