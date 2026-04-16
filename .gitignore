@@ -1,0 +1,13 @@
+node_modules/
+.codex/
+.next/
+dist/
+coverage/
+spb.v2.1/
+backend/storage/data/
+backend/storage/uploads/
+*.log
+npm-debug.log*
+frontend/package-lock.json
+backend/package-lock.json
+shared/package-lock.json
