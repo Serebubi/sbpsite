@@ -246,6 +246,33 @@ describe("backend api", () => {
     expect(createResponse.body.order.totalAmount).toBeNull();
     expect(createResponse.body.order.size).toBe("M");
   });
+
+  it("stores the selected pickup point in the order", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () => {
+        throw new Error("Bitrix unavailable");
+      }),
+    );
+
+    const app = createApp();
+
+    const createResponse = await request(app)
+      .post("/orders/create")
+      .field("orderType", "pickup_standard")
+      .field("marketplace", "wildberries")
+      .field("pickupPoint", "chelyuskintsev_donetsk")
+      .field("firstName", "Иван")
+      .field("lastName", "Иванов")
+      .field("phone", "+79997776655")
+      .field("size", "42")
+      .field("sourceUrl", "https://www.wildberries.ru/catalog/123/detail.aspx");
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.order.pickupPoint).toBe("chelyuskintsev_donetsk");
+    expect(createResponse.body.order.pickupAddress).toBe("Челюскинцев (г. Донецк)");
+  });
+
   it("creates a home delivery request from existing order numbers", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
       const url = String(input);
@@ -753,6 +780,7 @@ describe("backend api", () => {
       marketplace: "home_delivery",
       status: "CREATED",
       pickupAddress: "Грушевского, 8",
+      pickupPoint: null,
       customer: {
         firstName: "Ирина",
         lastName: null,

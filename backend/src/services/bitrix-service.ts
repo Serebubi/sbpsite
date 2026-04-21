@@ -5,6 +5,7 @@ import {
   bitrixPayloadSchema,
   humanizeBitrixStage,
   humanizeMarketplace,
+  humanizePickupPoint,
   mapBitrixStageToOrderStatus,
   type OrderRecord,
   type OrderStatus,
@@ -34,6 +35,7 @@ type BitrixDealFieldKey =
   | "marketplace"
   | "status"
   | "pickupAddress"
+  | "pickupPoint"
   | "customerName"
   | "customerPhone"
   | "itemCount"
@@ -66,6 +68,7 @@ const bitrixDealFieldEnvMap = {
   marketplace: "BITRIX_DEAL_FIELD_MARKETPLACE",
   status: "BITRIX_DEAL_FIELD_STATUS",
   pickupAddress: "BITRIX_DEAL_FIELD_PICKUP_ADDRESS",
+  pickupPoint: "BITRIX_DEAL_FIELD_PICKUP_POINT",
   customerName: "BITRIX_DEAL_FIELD_CUSTOMER_NAME",
   customerPhone: "BITRIX_DEAL_FIELD_CUSTOMER_PHONE",
   itemCount: "BITRIX_DEAL_FIELD_ITEM_COUNT",
@@ -278,6 +281,7 @@ function buildDealFieldEntries(order: OrderRecord, attachmentUrl: string | null,
     { key: "marketplace", label: "Маркетплейс", value: humanizeMarketplace(order.marketplace) },
     { key: "status", label: "Статус", value: order.status },
     { key: "pickupAddress", label: "Адрес ПВЗ", value: order.pickupAddress },
+    { key: "pickupPoint", label: "Пункт выдачи", value: order.pickupPoint ? humanizePickupPoint(order.pickupPoint) : null },
     { key: "customerName", label: "ФИО", value: buildCustomerFullName(order) },
     { key: "customerPhone", label: "Телефон", value: order.customer.phone },
     { key: "totalAmount", label: "Сумма", value: order.totalAmount },
@@ -516,6 +520,7 @@ export function mapOrderToBitrixPayload(order: OrderRecord) {
     marketplace: order.marketplace,
     status: order.status,
     pickupAddress: order.pickupAddress,
+    pickupPoint: order.pickupPoint ? humanizePickupPoint(order.pickupPoint) : null,
     customer: {
       fullName: buildCustomerFullName(order),
       phone: order.customer.phone,

@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react/no-unescaped-entities */
 
 import Image from "next/image";
 import {
@@ -12,6 +13,7 @@ import {
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
+  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
 
@@ -21,6 +23,7 @@ import {
   homeDeliveryTimeSlotValues,
   createPaidPickupOrderSchema,
   createPickupStandardOrderSchema,
+  pickupPointOptions,
   humanizeMarketplace,
   marketplaceExampleUrls,
   numericIdSchema,
@@ -29,6 +32,7 @@ import {
   type HomeDeliveryTimeSlot,
   type MarketplaceId,
   type OrderRecord,
+  type PickupPointId,
 } from "shared";
 
 import { cancelOrder, createHomeDeliveryOrder, createPickupOrder, fetchOrder, lookupOrder as lookupTrackedOrder } from "@/lib/api";
@@ -53,6 +57,7 @@ type SpecialPickupId = "courier" | "bulky";
 type PickupState = {
   step: 1 | 2 | 3;
   marketplace: MarketplaceId | SpecialPickupId | "";
+  pickupPoint: PickupPointId | "";
   firstName: string;
   lastName: string;
   phone: string;
@@ -248,6 +253,7 @@ function createPickupState(): PickupState {
   return {
     step: 1,
     marketplace: "",
+    pickupPoint: "",
     firstName: "",
     lastName: "",
     phone: "",
@@ -331,6 +337,125 @@ function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
       {...props}
       className={`w-full rounded-full border border-[color:var(--line)] bg-white px-5 py-3.5 text-base text-[color:var(--foreground)] shadow-[0_10px_24px_rgba(84,58,128,0.05)] placeholder:text-[color:rgba(44,47,48,0.28)] ${className ?? ""}`}
     />
+  );
+}
+
+function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
+  return (
+    <div className="relative">
+      <select
+        {...props}
+        className={`w-full appearance-none rounded-[24px] border border-[color:var(--line)] bg-white px-5 py-3.5 pr-12 text-base text-[color:var(--foreground)] shadow-[0_10px_24px_rgba(84,58,128,0.05)] ${className ?? ""}`}
+      >
+        {children}
+      </select>
+      <span className="pointer-events-none absolute inset-y-0 right-5 flex items-center text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
+        ▼
+      </span>
+    </div>
+  );
+}
+
+function PickupPointSelect({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        id={id}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className={`flex w-full items-center justify-between gap-4 rounded-[24px] border px-5 py-3.5 text-left text-base shadow-[0_10px_24px_rgba(84,58,128,0.05)] transition ${
+          open
+            ? "border-[rgba(196,46,160,0.3)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,244,255,0.96))] shadow-[0_18px_38px_rgba(123,77,255,0.12)]"
+            : "border-[color:var(--line)] bg-white hover:border-[rgba(196,46,160,0.18)]"
+        }`}
+      >
+        <span className={value ? "text-[color:var(--foreground)]" : "text-[color:rgba(44,47,48,0.42)]"}>{selectedLabel}</span>
+        <span
+          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface-soft)] text-[11px] font-bold text-[color:var(--muted)] transition ${
+            open ? "rotate-180 bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-[color:var(--accent-strong)]" : ""
+          }`}
+        >
+          ▼
+        </span>
+      </button>
+      {open ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+12px)] z-30 overflow-hidden rounded-[28px] border border-[rgba(196,46,160,0.16)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(250,246,255,0.98))] p-3 shadow-[0_24px_60px_rgba(84,58,128,0.18)] backdrop-blur">
+          <div role="listbox" aria-labelledby={id} className="max-h-72 space-y-1 overflow-y-auto pr-1">
+            {options.map((option) => {
+              const active = option.value === value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between rounded-[20px] px-4 py-3 text-left text-[15px] transition ${
+                    active
+                      ? "bg-[linear-gradient(135deg,rgba(196,46,160,0.12),rgba(124,51,255,0.12))] font-semibold text-[color:var(--foreground)] shadow-[0_10px_24px_rgba(123,77,255,0.08)]"
+                      : "text-[color:var(--foreground)] hover:bg-[color:var(--surface-soft)]"
+                  }`}
+                >
+                  <span>{option.label}</span>
+                  {active ? (
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[linear-gradient(135deg,#c42ea0,#7c33ff)] text-[10px] font-bold text-white shadow-[0_10px_18px_rgba(123,77,255,0.2)]">
+                      ✓
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -786,6 +911,24 @@ export function SuperboxApp() {
       };
     });
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedFlow = params.get("flow");
+
+    if (
+      requestedFlow === "pickup_standard" ||
+      requestedFlow === "order_lookup" ||
+      requestedFlow === "pickup_paid" ||
+      requestedFlow === "home_delivery" ||
+      requestedFlow === "ship_russia" ||
+      requestedFlow === "cancel_order" ||
+      requestedFlow === "support" ||
+      requestedFlow === "tariffs"
+    ) {
+      setActiveFlow(requestedFlow);
+    }
+  }, []);
+
   const openFlow = (flow: FlowId) => {
     setActiveFlow(flow);
   };
@@ -993,6 +1136,7 @@ export function SuperboxApp() {
         ? createPickupStandardOrderSchema.safeParse({
             orderType: activeFlow,
             marketplace: activePickup.marketplace,
+            pickupPoint: activePickup.pickupPoint || undefined,
             firstName: activePickup.firstName,
             lastName: activePickup.lastName,
             phone: activePickup.phone,
@@ -1002,6 +1146,7 @@ export function SuperboxApp() {
         : createPaidPickupOrderSchema.safeParse({
             orderType: activeFlow,
             marketplace: activePickup.marketplace,
+            pickupPoint: activePickup.pickupPoint || undefined,
             firstName: activePickup.firstName,
             lastName: activePickup.lastName,
             phone: activePickup.phone,
@@ -1017,6 +1162,7 @@ export function SuperboxApp() {
     if (!parsed.success) {
       for (const issue of parsed.error.issues) nextErrors[String(issue.path[0] ?? "form")] = issue.message;
     }
+    if (!activePickup.pickupPoint) nextErrors.pickupPoint = "Выберите пункт выдачи";
     if (isBulkyPaid && activePickup.bulkyAttachments.length === 0) nextErrors.attachment = paidFieldCopy.attachmentRequiredError;
     if (activeFlow === "pickup_paid" && !usesTrackingPickupFields && !isBulkyPaid && !activePickup.attachment) nextErrors.attachment = paidFieldCopy.attachmentRequiredError;
     if (isWildberriesPremiumPaid && !activePickup.productAttachment) nextErrors.productAttachment = "Прикрепите скриншот товара.";
@@ -1030,6 +1176,7 @@ export function SuperboxApp() {
         const response = await createPickupOrder({
           orderType: activeFlow as "pickup_standard" | "pickup_paid",
           marketplace: activePickup.marketplace,
+          pickupPoint: activePickup.pickupPoint || undefined,
           firstName: activePickup.firstName,
           lastName: activePickup.lastName,
           phone: activePickup.phone,
@@ -1916,6 +2063,42 @@ export function SuperboxApp() {
                 </Field>
               </>
             )}
+
+            <Field
+              label="Пункт выдачи"
+              htmlFor={`${activeFlow}-pickupPoint-modern`}
+              error={activePickup.errors.pickupPoint}
+            >
+              <PickupPointSelect
+                id={`${activeFlow}-pickupPoint-modern`}
+                value={activePickup.pickupPoint}
+                onChange={(pickupPoint) => updatePickup({ pickupPoint: pickupPoint as PickupPointId | "", errors: { ...activePickup.errors, pickupPoint: "" } })}
+                placeholder="Выберите пункт выдачи"
+                options={pickupPointOptions.map((pickupPoint) => ({
+                  value: pickupPoint.id,
+                  label: pickupPoint.label,
+                }))}
+              />
+            </Field>
+
+            {/* <Field
+              label="Пункт выдачи"
+              htmlFor={`${activeFlow}-pickupPoint`}
+              error={activePickup.errors.pickupPoint}
+            >
+              <PickupPointSelect
+                id={`${activeFlow}-pickupPoint`}
+                value={activePickup.pickupPoint}
+                onChange={(pickupPoint) => updatePickup({ pickupPoint: pickupPoint as PickupPointId | "", errors: { ...activePickup.errors, pickupPoint: "" } })}
+                placeholder="Р’С‹Р±РµСЂРёС‚Рµ РїСѓРЅРєС‚ РІС‹РґР°С‡Рё"
+                options={pickupPointOptions.map((pickupPoint) => ({
+                  value: pickupPoint.id,
+                  label: pickupPoint.label,
+                }))}
+              >
+                <option value="">Выберите пункт выдачи</option>
+              </PickupPointSelect>
+            </Field> */}
 
             {activePickup.errors.form ? (
               <div className="rounded-[24px] border border-[color:rgba(220,38,38,0.16)] bg-[rgba(220,38,38,0.06)] px-5 py-4 text-sm font-semibold text-[color:var(--danger)]">
