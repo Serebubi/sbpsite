@@ -14,6 +14,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 export async function createPickupOrder(payload: {
   orderType: "pickup_standard" | "pickup_paid";
   marketplace: string;
+  pickupPoint?: string;
   firstName: string;
   lastName?: string;
   phone: string;
@@ -32,6 +33,9 @@ export async function createPickupOrder(payload: {
   const formData = new FormData();
   formData.set("orderType", payload.orderType);
   formData.set("marketplace", payload.marketplace);
+  if (payload.pickupPoint) {
+    formData.set("pickupPoint", payload.pickupPoint);
+  }
   formData.set("firstName", payload.firstName);
   if (payload.lastName) {
     formData.set("lastName", payload.lastName);

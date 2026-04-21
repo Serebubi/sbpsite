@@ -7,6 +7,10 @@ spb.v2.1/
 backend/storage/data/
 backend/storage/uploads/
 *.log
+.env
+.env.*
+frontend/.env
+frontend/.env.*
 npm-debug.log*
 frontend/package-lock.json
 backend/package-lock.json

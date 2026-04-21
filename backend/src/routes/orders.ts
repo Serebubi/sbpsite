@@ -86,6 +86,7 @@ export function createOrderRouter(orderService: OrderService) {
               ? {
                   orderType: body.orderType,
                   marketplace: body.marketplace,
+                  pickupPoint: body.pickupPoint,
                   firstName: body.firstName,
                   lastName: body.lastName,
                   phone: body.phone,
@@ -96,6 +97,7 @@ export function createOrderRouter(orderService: OrderService) {
                 ? {
                     orderType: body.orderType,
                     marketplace: body.marketplace,
+                    pickupPoint: body.pickupPoint,
                     firstName: body.firstName,
                     lastName: body.lastName,
                     phone: body.phone,
@@ -107,6 +109,7 @@ export function createOrderRouter(orderService: OrderService) {
                   ? {
                       orderType: body.orderType,
                       marketplace: body.marketplace,
+                      pickupPoint: body.pickupPoint,
                       firstName: body.firstName,
                       lastName: body.lastName,
                       phone: body.phone,
@@ -116,6 +119,7 @@ export function createOrderRouter(orderService: OrderService) {
                     ? {
                         orderType: body.orderType,
                         marketplace: body.marketplace,
+                        pickupPoint: body.pickupPoint,
                         firstName: body.firstName,
                         lastName: body.lastName,
                         phone: body.phone,
@@ -127,6 +131,7 @@ export function createOrderRouter(orderService: OrderService) {
                       ? {
                           orderType: body.orderType,
                           marketplace: body.marketplace,
+                          pickupPoint: body.pickupPoint,
                           firstName: body.firstName,
                           lastName: body.lastName,
                           phone: body.phone,
@@ -139,6 +144,7 @@ export function createOrderRouter(orderService: OrderService) {
                       : {
                           orderType: body.orderType,
                           marketplace: body.marketplace,
+                          pickupPoint: body.pickupPoint,
                           firstName: body.firstName,
                           lastName: body.lastName,
                           phone: body.phone,

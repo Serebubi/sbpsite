@@ -1,0 +1,223 @@
+"use client";
+
+import { type ReactNode } from "react";
+
+import { SarmaExpressHeader } from "@/components/sarma-express-header";
+
+const cargoTypeOptions = ["Документы", "Коробки и посылки", "Сборный груз", "Паллеты", "Хрупкий груз"];
+const extraServiceOptions = [
+  "Без дополнительных услуг",
+  "Страхование",
+  "Забор с адреса",
+  "Доставка до двери",
+  "Хрупкий груз",
+];
+
+type CalculatorState = {
+  from: string;
+  to: string;
+  weight: string;
+  volume: string;
+  cargoType: string;
+  extraServices: string;
+};
+
+const initialState: CalculatorState = {
+  from: "",
+  to: "",
+  weight: "",
+  volume: "",
+  cargoType: cargoTypeOptions[0],
+  extraServices: extraServiceOptions[0],
+};
+
+const fieldClassName =
+  "mt-1.5 w-full border-none bg-transparent p-0 text-base font-semibold text-white placeholder:text-white/66 focus:outline-none";
+
+export function DeliveryCalculatorPage() {
+  return (
+    <main className="min-h-screen bg-[#edf2f8] text-[#12243f]">
+      <SarmaExpressHeader activeItem="calculator" />
+
+      <section
+        className="relative overflow-hidden bg-[#4a8de7] bg-cover bg-[position:72%_center] bg-no-repeat"
+        style={{ backgroundImage: "url('/brand/hero-background.png')" }}
+      >
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(51,114,214,0.96)_0%,rgba(86,148,232,0.82)_34%,rgba(150,198,248,0.26)_64%,rgba(255,255,255,0)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.6),transparent_17%),linear-gradient(90deg,rgba(255,255,255,0)_46%,rgba(255,255,255,0.74)_100%)]" />
+        <div className="absolute -left-28 top-1/2 h-[580px] w-[580px] -translate-y-1/2 rounded-full border border-white/18" />
+        <div className="absolute -left-10 bottom-[-180px] h-[440px] w-[440px] rounded-full border border-white/18" />
+        <div className="absolute left-[5%] top-[34%] hidden h-36 w-44 opacity-35 lg:block">
+          <DotPattern />
+        </div>
+
+        <div className="relative mx-auto flex min-h-[calc(100vh-92px)] w-full max-w-[1320px] items-start justify-center px-4 py-12 lg:px-6 lg:py-16">
+          <div className="relative z-10 w-full max-w-[590px]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/36 bg-white/12 px-4 py-2 text-sm font-semibold text-white/92 backdrop-blur-sm">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#9fd0ff]" />
+              Предварительный расчет
+            </div>
+
+            <h1 className="mt-6 max-w-[640px] text-4xl font-extrabold leading-[1.05] text-white drop-shadow-[0_16px_34px_rgba(20,56,120,0.22)] sm:text-5xl lg:text-[4rem]">
+              Калькулятор
+              <br />
+              доставки
+            </h1>
+
+            <p className="mt-5 max-w-[560px] text-base leading-7 text-white/86 sm:text-lg">
+              Страница уже готова для маршрута и интерфейса. Точные тарифы подключим позже, когда вы передадите формулы расчета.
+            </p>
+
+            <form
+              className="mt-8 rounded-[32px] border border-white/36 bg-[linear-gradient(180deg,rgba(255,255,255,0.23)_0%,rgba(255,255,255,0.12)_100%)] p-5 shadow-[0_28px_80px_rgba(28,78,160,0.22)] backdrop-blur-[18px] sm:p-7"
+              onSubmit={(event) => {
+                event.preventDefault();
+              }}
+            >
+              <div className="grid gap-4">
+                <FieldShell icon={<PinIcon />} label="Откуда">
+                  <input
+                    placeholder="Город отправления"
+                    className={fieldClassName}
+                  />
+                </FieldShell>
+
+                <FieldShell icon={<PinIcon />} label="Куда">
+                  <input
+                    placeholder="Город назначения"
+                    className={fieldClassName}
+                  />
+                </FieldShell>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FieldShell icon={<WeightIcon />} label="Вес груза, кг">
+                    <input
+                      placeholder="Например, 120"
+                      inputMode="decimal"
+                      className={fieldClassName}
+                    />
+                  </FieldShell>
+
+                  <FieldShell icon={<VolumeIcon />} label="Объем, м³">
+                    <input
+                      placeholder="Например, 1.8"
+                      inputMode="decimal"
+                      className={fieldClassName}
+                    />
+                  </FieldShell>
+                </div>
+
+                <FieldShell icon={<CargoIcon />} label="Тип груза">
+                  <select className={fieldClassName} defaultValue={initialState.cargoType}>
+                    {cargoTypeOptions.map((option) => (
+                      <option key={option} value={option} className="text-[#12315b]">
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </FieldShell>
+
+                <FieldShell icon={<ShieldIcon />} label="Дополнительные услуги">
+                  <select className={fieldClassName} defaultValue={initialState.extraServices}>
+                    {extraServiceOptions.map((option) => (
+                      <option key={option} value={option} className="text-[#12315b]">
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </FieldShell>
+
+                <button
+                  type="submit"
+                  className="mt-4 inline-flex min-h-14 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#5e9df1_0%,#487dd6_100%)] px-8 text-lg font-extrabold text-white shadow-[0_20px_36px_rgba(45,90,175,0.26)] hover:-translate-y-0.5"
+                >
+                  Рассчитать стоимость
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function FieldShell({
+  icon,
+  label,
+  children,
+}: {
+  icon: ReactNode;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="flex items-center gap-3 rounded-[22px] border border-white/26 bg-white/28 px-4 py-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/18 text-white/90">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-white/72">{label}</span>
+        {children}
+      </div>
+    </label>
+  );
+}
+
+function DotPattern() {
+  return (
+    <svg viewBox="0 0 176 144" className="h-full w-full fill-white/45" aria-hidden="true">
+      {Array.from({ length: 8 }).map((_, row) =>
+        Array.from({ length: 11 }).map((_, column) => (
+          <circle key={`${row}-${column}`} cx={12 + column * 15} cy={12 + row * 15} r={row > 5 && column > 8 ? 0 : 4.2} />
+        )),
+      )}
+    </svg>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 21s6-5.7 6-10.3A6 6 0 1 0 6 10.7C6 15.3 12 21 12 21Z" />
+      <circle cx="12" cy="10" r="2.4" />
+    </svg>
+  );
+}
+
+function WeightIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8.4 7.4 10.2 4h3.6l1.8 3.4" />
+      <path d="M6 8h12l1 10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L6 8Z" />
+      <path d="M12 11.5v4" />
+    </svg>
+  );
+}
+
+function VolumeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z" />
+      <path d="M4 7.5 12 12l8-4.5" />
+      <path d="M12 12v9" />
+    </svg>
+  );
+}
+
+function CargoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3.5 8.2 12 3l8.5 5.2v7.6L12 21l-8.5-5.2V8.2Z" />
+      <path d="M12 3v18" />
+      <path d="m3.5 8.2 8.5 5.1 8.5-5.1" />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3 5 6v5.7c0 4.7 2.8 7.9 7 9.3 4.2-1.4 7-4.6 7-9.3V6l-7-3Z" />
+      <path d="m9.2 12.4 1.9 1.9 3.8-4.2" />
+    </svg>
+  );
+}
