@@ -11,6 +11,8 @@ backend/storage/uploads/
 .env.*
 frontend/.env
 frontend/.env.*
+yandexmap.txt
+output-pickup-points.png
 npm-debug.log*
 frontend/package-lock.json
 backend/package-lock.json
