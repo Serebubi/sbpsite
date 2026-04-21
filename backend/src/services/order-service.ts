@@ -4,6 +4,7 @@ import {
   cancelOrderSchema,
   createOrderSchema,
   homeDeliveryMarketplaceId,
+  humanizePickupPoint,
   orderSchema,
   pickupAddress,
   type OrderRecord,
@@ -85,7 +86,8 @@ export class OrderService {
       orderType: payload.orderType,
       marketplace: payload.orderType === "home_delivery" ? homeDeliveryMarketplaceId : payload.marketplace,
       status: "CREATED",
-      pickupAddress,
+      pickupAddress: "pickupPoint" in payload ? humanizePickupPoint(payload.pickupPoint) : pickupAddress,
+      pickupPoint: "pickupPoint" in payload ? payload.pickupPoint : null,
       customer: {
         firstName: payload.orderType === "home_delivery" ? homeDeliveryCustomer?.firstName ?? "Клиент" : payload.firstName,
         lastName: lastName ?? null,

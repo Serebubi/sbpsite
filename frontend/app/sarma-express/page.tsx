@@ -7,6 +7,6 @@ export const metadata: Metadata = {
   description: "Отдельная промо-страница Сарма Экспресс для ежедневной доставки на Новые Территории.",
 };
 
-export default function Home() {
+export default function SarmaExpressRoutePage() {
   return <SarmaExpressPage />;
 }

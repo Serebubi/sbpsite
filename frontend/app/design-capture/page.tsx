@@ -12,6 +12,7 @@ const sampleOrder: OrderRecord = {
   marketplace: "wildberries",
   status: "CREATED",
   pickupAddress: "Грушевского, 8",
+  pickupPoint: "grushevskogo_mariupol",
   customer: {
     firstName: "Серебан",
     lastName: "К.",
@@ -48,6 +49,7 @@ const deliveryOrder: OrderRecord = {
   orderNumber: "669282",
   orderType: "home_delivery",
   marketplace: homeDeliveryMarketplaceId,
+  pickupPoint: null,
   relatedOrderNumbers: ["669281", "669283"],
   deliveryAddress: "Мариуполь, проспект Ленина, 11",
   sourceUrl: null,

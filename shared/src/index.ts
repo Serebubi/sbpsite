@@ -122,6 +122,24 @@ export const marketplaceExampleUrls: Record<MarketplaceId, string> = {
   detmir: "https://www.detmir.ru/product/index/id/1234567/",
 };
 
+export const pickupPointOptions = [
+  { id: "grushevskogo_mariupol", label: "Мариуполь, улица 60 лет СССР, дом 8" },
+  { id: "chelyuskintsev_donetsk", label: "Донецк, улица Челюскинцев 184" },
+  { id: "kubysheva_warehouse", label: "Донецк, улица Куйбышева 70/13" },
+  { id: "mendeleeva_volnovakha", label: "Волноваха, ул. Менделеева 14" },
+  { id: "ostrovskogo_makeevka", label: "Макеевка, ул. Островского 3/18" },
+] as const;
+
+export type PickupPointId = (typeof pickupPointOptions)[number]["id"];
+export type PickupPointDefinition = (typeof pickupPointOptions)[number];
+
+export const pickupPointById = Object.fromEntries(
+  pickupPointOptions.map((pickupPoint) => [pickupPoint.id, pickupPoint]),
+) as Record<PickupPointId, PickupPointDefinition>;
+
+export const defaultPickupPointId = "grushevskogo_mariupol" as const;
+export const pickupPointSchema = z.enum(pickupPointOptions.map((pickupPoint) => pickupPoint.id) as [PickupPointId, ...PickupPointId[]]);
+
 export const homeDeliveryMarketplaceId = "home_delivery" as const;
 export const paidSpecialMarketplaceIds = ["courier", "bulky"] as const;
 export type PaidSpecialMarketplaceId = (typeof paidSpecialMarketplaceIds)[number];
@@ -198,6 +216,7 @@ export const createPaidPickupOrderSchema = z
   .object({
     orderType: z.literal("pickup_paid"),
     marketplace: z.union([marketplaceSchema, paidSpecialMarketplaceSchema]),
+    pickupPoint: pickupPointSchema.default(defaultPickupPointId),
     firstName: z.string().trim().optional(),
     lastName: z.string().trim().optional(),
     phone: phoneSchema,
@@ -333,6 +352,7 @@ export const createPickupOrderSchema = z.object({
 export const createPickupStandardOrderSchema = z.object({
   orderType: z.literal("pickup_standard"),
   marketplace: marketplaceSchema,
+  pickupPoint: pickupPointSchema.default(defaultPickupPointId),
   firstName: z.string().trim().min(1, "\u0423\u043a\u0430\u0436\u0438\u0442\u0435 \u0438\u043c\u044f"),
   lastName: z.string().trim().min(1, "\u0423\u043a\u0430\u0436\u0438\u0442\u0435 \u0444\u0430\u043c\u0438\u043b\u0438\u044e"),
   phone: phoneSchema,
@@ -389,6 +409,7 @@ export const orderSchema = z.object({
   marketplace: orderMarketplaceSchema,
   status: orderStatusSchema,
   pickupAddress: z.string(),
+  pickupPoint: pickupPointSchema.nullable().default(null),
   customer: customerSchema,
   relatedOrderNumbers: z.array(numericIdSchema).default([]),
   itemCount: z.number().int().positive().nullable(),
@@ -444,6 +465,7 @@ export const bitrixPayloadSchema = z.object({
   marketplace: z.string(),
   status: z.string(),
   pickupAddress: z.string(),
+  pickupPoint: z.string().nullable().default(null),
   customer: z.object({
     fullName: z.string(),
     phone: z.string(),
@@ -469,11 +491,12 @@ export const bitrixPayloadSchema = z.object({
 });
 
 export function mapBitrixStageToOrderStatus(stageId: string | null | undefined): OrderStatus | null {
-  if (!stageId) {
+  const normalizedStageId = normalizeBitrixStageId(stageId);
+  if (!normalizedStageId) {
     return null;
   }
 
-  switch (stageId) {
+  switch (normalizedStageId) {
     case "NEW":
       return "CREATED";
     case "UC_6K3CY6":
@@ -492,11 +515,30 @@ export function mapBitrixStageToOrderStatus(stageId: string | null | undefined):
 }
 
 export function humanizeBitrixStage(stageId: string | null | undefined) {
+  const normalizedStageId = normalizeBitrixStageId(stageId);
+  if (!normalizedStageId) {
+    return null;
+  }
+
+  return bitrixStageLabels[normalizedStageId as keyof typeof bitrixStageLabels] ?? stageId;
+}
+
+export function humanizePickupPoint(pickupPoint: PickupPointId) {
+  return pickupPointById[pickupPoint].label;
+}
+
+function normalizeBitrixStageId(stageId: string | null | undefined) {
   if (!stageId) {
     return null;
   }
 
-  return bitrixStageLabels[stageId as keyof typeof bitrixStageLabels] ?? stageId;
+  const normalized = stageId.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const [, suffix = normalized] = normalized.split(":");
+  return suffix;
 }
 
 export function getMarketplaceByHost(host: string): MarketplaceDefinition | null {

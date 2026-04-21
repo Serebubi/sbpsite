@@ -15,6 +15,7 @@ describe("shared schemas", () => {
     const result = createPickupStandardOrderSchema.parse({
       orderType: "pickup_standard",
       marketplace: "wildberries",
+      pickupPoint: "mendeleeva_volnovakha",
       firstName: "Сергей",
       lastName: "Иванов",
       phone: "+79997776655",
@@ -24,6 +25,7 @@ describe("shared schemas", () => {
     });
 
     expect(result.marketplace).toBe("wildberries");
+    expect(result.pickupPoint).toBe("mendeleeva_volnovakha");
   });
 
   it("validates cdek paid pickup input", () => {
