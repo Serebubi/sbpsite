@@ -2,6 +2,7 @@
 /* eslint-disable react/no-unescaped-entities */
 
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import {
   Fragment,
   useEffect,
@@ -23,6 +24,7 @@ import {
   homeDeliveryTimeSlotValues,
   createPaidPickupOrderSchema,
   createPickupStandardOrderSchema,
+  marketplaces,
   pickupPointOptions,
   humanizeMarketplace,
   marketplaceExampleUrls,
@@ -36,13 +38,14 @@ import {
 } from "shared";
 
 import { cancelOrder, createHomeDeliveryOrder, createPickupOrder, fetchOrder, lookupOrder as lookupTrackedOrder } from "@/lib/api";
+import { SarmaExpressHeader } from "@/components/sarma-express-header";
 
 import { FlowShell } from "./flow-shell";
-import { MarketplaceGrid } from "./marketplace-grid";
 import { OrderSummaryCard } from "./order-summary-card";
 
 type FlowId =
   | "overview"
+  | "business"
   | "pickup_standard"
   | "order_lookup"
   | "pickup_paid"
@@ -51,6 +54,24 @@ type FlowId =
   | "cancel_order"
   | "support"
   | "tariffs";
+
+function resolveFlowFromSearchParam(flow: string | null): FlowId {
+  if (
+    flow === "business" ||
+    flow === "pickup_standard" ||
+    flow === "order_lookup" ||
+    flow === "pickup_paid" ||
+    flow === "home_delivery" ||
+    flow === "ship_russia" ||
+    flow === "cancel_order" ||
+    flow === "support" ||
+    flow === "tariffs"
+  ) {
+    return flow;
+  }
+
+  return "overview";
+}
 
 type SpecialPickupId = "courier" | "bulky";
 
@@ -362,18 +383,41 @@ function PickupPointSelect({
   onChange,
   options,
   placeholder,
+  variant = "default",
 }: {
   id: string;
   value: string;
   onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
   placeholder: string;
+  variant?: "default" | "sarma";
 }) {
   const [open, setOpen] = useState(false);
+  const [menuPlacement, setMenuPlacement] = useState<"bottom" | "top">("bottom");
+  const [menuMaxHeight, setMenuMaxHeight] = useState(288);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
+
+    const updateMenuPosition = () => {
+      if (!rootRef.current) {
+        return;
+      }
+
+      const rect = rootRef.current.getBoundingClientRect();
+      const viewportPadding = 16;
+      const gap = 12;
+      const availableBelow = window.innerHeight - rect.bottom - viewportPadding - gap;
+      const availableAbove = rect.top - viewportPadding - gap;
+      const shouldOpenUpward = availableBelow < 260 && availableAbove > availableBelow;
+      const availableSpace = shouldOpenUpward ? availableAbove : availableBelow;
+
+      setMenuPlacement(shouldOpenUpward ? "top" : "bottom");
+      setMenuMaxHeight(Math.max(140, Math.min(320, availableSpace)));
+    };
+
+    updateMenuPosition();
 
     const handlePointerDown = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
@@ -389,14 +433,19 @@ function PickupPointSelect({
 
     window.addEventListener("mousedown", handlePointerDown);
     window.addEventListener("keydown", handleEscape);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
 
     return () => {
       window.removeEventListener("mousedown", handlePointerDown);
       window.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
     };
   }, [open]);
 
   const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
+  const sarma = variant === "sarma";
 
   return (
     <div ref={rootRef} className="relative">
@@ -406,24 +455,36 @@ function PickupPointSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className={`flex w-full items-center justify-between gap-4 rounded-[24px] border px-5 py-3.5 text-left text-base shadow-[0_10px_24px_rgba(84,58,128,0.05)] transition ${
-          open
-            ? "border-[rgba(196,46,160,0.3)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,244,255,0.96))] shadow-[0_18px_38px_rgba(123,77,255,0.12)]"
-            : "border-[color:var(--line)] bg-white hover:border-[rgba(196,46,160,0.18)]"
+        className={`flex w-full items-center justify-between gap-4 rounded-[24px] border px-5 py-3.5 text-left text-base transition ${
+          sarma
+            ? open
+              ? "border-[#8cb7ff] bg-[linear-gradient(180deg,#ffffff_0%,#edf5ff_100%)] text-[#173862] shadow-[0_18px_34px_rgba(39,77,146,0.16)]"
+              : "border-white/58 bg-[linear-gradient(180deg,#ffffff_0%,#f2f7ff_100%)] text-[#173862] shadow-[0_14px_28px_rgba(39,77,146,0.1)] hover:border-[#bfd5f7]"
+            : open
+              ? "border-[rgba(196,46,160,0.3)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,244,255,0.96))] shadow-[0_18px_38px_rgba(123,77,255,0.12)]"
+              : "border-[color:var(--line)] bg-white shadow-[0_10px_24px_rgba(84,58,128,0.05)] hover:border-[rgba(196,46,160,0.18)]"
         }`}
       >
-        <span className={value ? "text-[color:var(--foreground)]" : "text-[color:rgba(44,47,48,0.42)]"}>{selectedLabel}</span>
+        <span className={value ? (sarma ? "font-semibold text-[#173862]" : "text-[color:var(--foreground)]") : (sarma ? "text-[#8ea4c6]" : "text-[color:rgba(44,47,48,0.42)]")}>{selectedLabel}</span>
         <span
-          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--surface-soft)] text-[11px] font-bold text-[color:var(--muted)] transition ${
-            open ? "rotate-180 bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-[color:var(--accent-strong)]" : ""
+          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition ${
+            sarma
+              ? `border ${open ? "rotate-180 border-[#bfd5f7] bg-[linear-gradient(180deg,#eef5ff_0%,#dfeafb_100%)] text-[#3970cf]" : "border-[#dce8f8] bg-[linear-gradient(180deg,#f7fbff_0%,#eaf2ff_100%)] text-[#5d7fae]"}`
+              : `bg-[color:var(--surface-soft)] text-[color:var(--muted)] ${open ? "rotate-180 bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-[color:var(--accent-strong)]" : ""}`
           }`}
         >
           ▼
         </span>
       </button>
       {open ? (
-        <div className="absolute left-0 right-0 top-[calc(100%+12px)] z-30 overflow-hidden rounded-[28px] border border-[rgba(196,46,160,0.16)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(250,246,255,0.98))] p-3 shadow-[0_24px_60px_rgba(84,58,128,0.18)] backdrop-blur">
-          <div role="listbox" aria-labelledby={id} className="max-h-72 space-y-1 overflow-y-auto pr-1">
+        <div className={`absolute left-0 right-0 z-30 overflow-hidden rounded-[28px] p-3 backdrop-blur ${
+          menuPlacement === "top" ? "bottom-[calc(100%+12px)]" : "top-[calc(100%+12px)]"
+        } ${
+          sarma
+            ? "border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(235,244,255,0.96))] shadow-[0_28px_48px_rgba(39,77,146,0.18)]"
+            : "border border-[rgba(196,46,160,0.16)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(250,246,255,0.98))] shadow-[0_24px_60px_rgba(84,58,128,0.18)]"
+        }`}>
+          <div role="listbox" aria-labelledby={id} className="space-y-1 overflow-y-auto pr-1" style={{ maxHeight: `${menuMaxHeight}px` }}>
             {options.map((option) => {
               const active = option.value === value;
 
@@ -438,14 +499,22 @@ function PickupPointSelect({
                     setOpen(false);
                   }}
                   className={`flex w-full items-center justify-between rounded-[20px] px-4 py-3 text-left text-[15px] transition ${
-                    active
-                      ? "bg-[linear-gradient(135deg,rgba(196,46,160,0.12),rgba(124,51,255,0.12))] font-semibold text-[color:var(--foreground)] shadow-[0_10px_24px_rgba(123,77,255,0.08)]"
-                      : "text-[color:var(--foreground)] hover:bg-[color:var(--surface-soft)]"
+                    sarma
+                      ? active
+                        ? "bg-[linear-gradient(180deg,#4c8ce6_0%,#3b74cf_100%)] font-semibold text-white shadow-[0_12px_24px_rgba(43,92,180,0.18)]"
+                        : "text-[#173862] hover:bg-white/90 hover:shadow-[0_10px_20px_rgba(39,77,146,0.08)]"
+                      : active
+                        ? "bg-[linear-gradient(135deg,rgba(196,46,160,0.12),rgba(124,51,255,0.12))] font-semibold text-[color:var(--foreground)] shadow-[0_10px_24px_rgba(123,77,255,0.08)]"
+                        : "text-[color:var(--foreground)] hover:bg-[color:var(--surface-soft)]"
                   }`}
                 >
                   <span>{option.label}</span>
                   {active ? (
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[linear-gradient(135deg,#c42ea0,#7c33ff)] text-[10px] font-bold text-white shadow-[0_10px_18px_rgba(123,77,255,0.2)]">
+                    <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white ${
+                      sarma
+                        ? "bg-white/18 shadow-[0_10px_18px_rgba(18,61,130,0.16)]"
+                        : "bg-[linear-gradient(135deg,#c42ea0,#7c33ff)] shadow-[0_10px_18px_rgba(123,77,255,0.2)]"
+                    }`}>
                       ✓
                     </span>
                   ) : null}
@@ -485,13 +554,16 @@ function FileUploadCard({
   file,
   accept,
   onChange,
+  variant = "default",
 }: {
   id: string;
   file: File | null;
   accept?: string;
   onChange: (file: File | null) => void;
+  variant?: "default" | "sarma";
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const sarma = variant === "sarma";
 
   const openFilePicker = () => inputRef.current?.click();
 
@@ -513,7 +585,11 @@ function FileUploadCard({
           openFilePicker();
         }
       }}
-      className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-[color:var(--line)] bg-[color:var(--surface-subtle)] px-6 py-8 text-center"
+      className={`flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-[28px] px-6 py-8 text-center ${
+        sarma
+          ? "border border-dashed border-[#c7dbf7] bg-[linear-gradient(180deg,#fbfdff_0%,#f0f6ff_100%)] shadow-[0_14px_28px_rgba(39,77,146,0.08)]"
+          : "border border-dashed border-[color:var(--line)] bg-[color:var(--surface-subtle)]"
+      }`}
     >
       <input
         ref={inputRef}
@@ -524,7 +600,11 @@ function FileUploadCard({
         onClick={(event) => event.stopPropagation()}
         onChange={(event) => onChange(event.target.files?.[0] ?? null)}
       />
-      <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-2xl text-[color:var(--accent-strong)]">
+      <span className={`inline-flex h-14 w-14 items-center justify-center rounded-full text-2xl ${
+        sarma
+          ? "bg-[linear-gradient(180deg,#eef5ff_0%,#dfeafb_100%)] text-[#3b74cf]"
+          : "bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-[color:var(--accent-strong)]"
+      }`}>
         ⬆
       </span>
       <span className="mt-5 text-lg font-semibold text-[color:var(--foreground)]">
@@ -559,14 +639,17 @@ function MultiFileUploadCard({
   accept,
   maxFiles,
   onChange,
+  variant = "default",
 }: {
   id: string;
   files: File[];
   accept?: string;
   maxFiles: number;
   onChange: (files: File[]) => void;
+  variant?: "default" | "sarma";
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const sarma = variant === "sarma";
   const remaining = Math.max(maxFiles - files.length, 0);
   const summary =
     files.length === 0
@@ -602,7 +685,11 @@ function MultiFileUploadCard({
           openFilePicker();
         }
       }}
-      className="relative flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-[color:var(--line)] bg-[color:var(--surface-subtle)] px-6 py-8 text-center"
+      className={`relative flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-[28px] px-6 py-8 text-center ${
+        sarma
+          ? "border border-dashed border-[#c7dbf7] bg-[linear-gradient(180deg,#fbfdff_0%,#f0f6ff_100%)] shadow-[0_14px_28px_rgba(39,77,146,0.08)]"
+          : "border border-dashed border-[color:var(--line)] bg-[color:var(--surface-subtle)]"
+      }`}
     >
       <input
         ref={inputRef}
@@ -617,10 +704,18 @@ function MultiFileUploadCard({
           event.currentTarget.value = "";
         }}
       />
-      <span className="absolute right-5 top-5 rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[color:var(--accent-strong)] shadow-[0_10px_24px_rgba(84,58,128,0.08)]">
+      <span className={`absolute right-5 top-5 rounded-full px-3 py-1 text-[11px] font-semibold ${
+        sarma
+          ? "bg-white text-[#3b74cf] shadow-[0_10px_24px_rgba(39,77,146,0.08)]"
+          : "bg-white text-[color:var(--accent-strong)] shadow-[0_10px_24px_rgba(84,58,128,0.08)]"
+      }`}>
         {files.length}/{maxFiles}
       </span>
-      <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-2xl text-[color:var(--accent-strong)]">
+      <span className={`inline-flex h-14 w-14 items-center justify-center rounded-full text-2xl ${
+        sarma
+          ? "bg-[linear-gradient(180deg,#eef5ff_0%,#dfeafb_100%)] text-[#3b74cf]"
+          : "bg-[linear-gradient(135deg,rgba(196,46,160,0.14),rgba(124,51,255,0.16))] text-[color:var(--accent-strong)]"
+      }`}>
         ↑
       </span>
       <span className="mt-5 text-lg font-semibold text-[color:var(--foreground)]">
@@ -647,10 +742,12 @@ function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaEl
 }
 
 function PrimaryButton({ className, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  const usesCustomBackground = className?.includes("bg-");
+
   return (
     <button
       {...props}
-      className={`primary-cta inline-flex items-center justify-center rounded-full px-7 py-3.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${className ?? ""}`}
+      className={`${usesCustomBackground ? "" : "primary-cta"} inline-flex items-center justify-center rounded-full px-7 py-3.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${className ?? ""}`}
     >
       {children}
     </button>
@@ -695,6 +792,36 @@ function SectionIntro({
       </h1>
       {shouldRenderDescription ? <p className="text-base leading-8 text-[color:var(--muted)]">{description}</p> : null}
     </div>
+  );
+}
+
+function LookupDotPattern() {
+  return (
+    <svg viewBox="0 0 176 144" className="h-full w-full fill-white/45" aria-hidden="true">
+      {Array.from({ length: 8 }).map((_, row) =>
+        Array.from({ length: 11 }).map((_, column) => (
+          <circle key={`${row}-${column}`} cx={12 + column * 15} cy={12 + row * 15} r={row > 5 && column > 8 ? 0 : 4.2} />
+        )),
+      )}
+    </svg>
+  );
+}
+
+function LookupLensIcon({ className = "h-6 w-6" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="6.8" />
+      <path d="m20 20-4.2-4.2" />
+    </svg>
   );
 }
 
@@ -842,7 +969,9 @@ function isPhoneLookupQuery(query: string) {
 }
 
 export function SuperboxApp() {
-  const [activeFlow, setActiveFlow] = useState<FlowId>("overview");
+  const searchParams = useSearchParams();
+  const requestedFlow = searchParams.get("flow");
+  const [activeFlow, setActiveFlow] = useState<FlowId>(() => resolveFlowFromSearchParam(requestedFlow));
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
   const [pickupStandard, setPickupStandard] = useState(createPickupState);
   const [pickupPaid, setPickupPaid] = useState(createPickupState);
@@ -862,6 +991,16 @@ export function SuperboxApp() {
   const deferredCancelNumber = useDeferredValue(cancelNumber);
   const activePickup = activeFlow === "pickup_paid" ? pickupPaid : pickupStandard;
   const setActivePickup = activeFlow === "pickup_paid" ? setPickupPaid : setPickupStandard;
+  const lockMainHeaderVisible = activeFlow === "pickup_paid" && activePickup.step === 1;
+  const useSarmaMarketplaceChrome =
+    (activeFlow === "pickup_paid" || activeFlow === "pickup_standard") &&
+    activePickup.step <= 2 &&
+    !activePickup.result;
+  const useSarmaLookupChrome = activeFlow === "order_lookup";
+  const useSarmaBusinessChrome = activeFlow === "business";
+  const useSarmaTariffsChrome = activeFlow === "tariffs";
+  const useSarmaShipRussiaChrome = activeFlow === "ship_russia";
+  const useSarmaChrome = useSarmaMarketplaceChrome || useSarmaLookupChrome || useSarmaBusinessChrome || useSarmaTariffsChrome || useSarmaShipRussiaChrome;
   const activePickupSourceUrlPlaceholder =
     activePickup.marketplace && activePickup.marketplace in marketplaceExampleUrls
       ? marketplaceExampleUrls[activePickup.marketplace as MarketplaceId]
@@ -912,25 +1051,20 @@ export function SuperboxApp() {
     });
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const requestedFlow = params.get("flow");
-
-    if (
-      requestedFlow === "pickup_standard" ||
-      requestedFlow === "order_lookup" ||
-      requestedFlow === "pickup_paid" ||
-      requestedFlow === "home_delivery" ||
-      requestedFlow === "ship_russia" ||
-      requestedFlow === "cancel_order" ||
-      requestedFlow === "support" ||
-      requestedFlow === "tariffs"
-    ) {
-      setActiveFlow(requestedFlow);
-    }
-  }, []);
+    setActiveFlow(resolveFlowFromSearchParam(requestedFlow));
+  }, [requestedFlow]);
 
   const openFlow = (flow: FlowId) => {
     setActiveFlow(flow);
+
+    const url = new URL(window.location.href);
+    if (flow === "overview") {
+      url.searchParams.delete("flow");
+    } else {
+      url.searchParams.set("flow", flow);
+    }
+
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   };
 
   const paidMarketplaceNotices: Partial<Record<string, ReactNode>> = {
@@ -1449,105 +1583,342 @@ export function SuperboxApp() {
       : "Ничего не выбрано";
 
     if (activePickup.step === 1) {
-      return (
-        <section className="mx-auto max-w-[1140px]">
-          <SectionIntro
-            eyebrow=""
-            title="Выберите маркетплейс"
-            description={
-              paid
-                ? "Сначала выберите источник заказа, затем загрузите QR или штрих-код и завершите оформление в отдельном flow."
-                : "Откуда нужно забрать товар? Сетка маркетплейсов приведена к единому виду и использует новый визуальный базис Stitch."
-            }
-            centered
-          />
-          {paid ? (
-            <div className="mx-auto mt-8 max-w-3xl rounded-[28px] border border-[color:rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] p-5 text-center text-sm leading-7 text-[color:var(--foreground)]">
-              QR и штрих-коды действуют ограниченное время. Не отправляйте их поздно вечером, чтобы менеджер успел принять заказ.
-            </div>
-          ) : null}
-          <div className="mt-10">
-            <MarketplaceGrid
-              value={isSpecial ? "" : (activePickup.marketplace as MarketplaceId | "")}
-              onSelect={(marketplace) => updatePickup({ marketplace, errors: {} })}
-              filter={paid ? undefined : ["wildberries", "ozon", "yandex_market"]}
-            >
-              {paid ? (
-                <div className="h-full sm:col-span-2 lg:col-span-3 xl:col-start-2 xl:col-span-3">
-                  <div className="grid h-full gap-4 sm:grid-cols-2">
-                    {specialPickupOptions.map((opt) => {
-                      const active = activePickup.marketplace === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => updatePickup({ marketplace: opt.id, errors: {} })}
-                          className={`marketplace-tile group relative flex h-full min-h-[152px] flex-col items-center justify-center gap-2 overflow-hidden rounded-[28px] border px-5 py-5 text-center transition ${
-                            active
-                              ? "border-[color:rgba(196,46,160,0.32)] bg-white shadow-[0_20px_44px_rgba(123,77,255,0.18)]"
-                              : "border-[rgba(123,77,255,0.2)] bg-[linear-gradient(135deg,rgba(123,77,255,0.05),rgba(196,46,160,0.04))] hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(59,26,110,0.08)]"
-                          }`}
-                        >
-                          {active && (
-                            <span className="absolute right-4 top-4 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[linear-gradient(135deg,#c42ea0,#7c33ff)] text-xs font-bold text-white shadow-[0_10px_18px_rgba(123,77,255,0.22)]">
-                              &#10003;
-                            </span>
-                          )}
-                          <span className="text-3xl">{opt.icon}</span>
-                          <span className="flex flex-col items-center gap-0.5">
-                            <span className="text-base font-semibold text-[color:var(--foreground)]">{opt.label}</span>
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--muted)]">{opt.sub}</span>
+      if (paid) {
+        const detmirMarketplace = marketplaces.find((marketplace) => marketplace.id === "detmir");
+        const primaryPaidMarketplaces = marketplaces.filter((marketplace) => marketplace.id !== "detmir");
+
+        return (
+          <section
+            className="relative overflow-hidden bg-[#3f84e6] bg-cover bg-[position:72%_center] bg-no-repeat"
+            style={{ backgroundImage: "url('/brand/hero-background.png')" }}
+          >
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(43,107,210,0.9)_0%,rgba(65,136,229,0.72)_30%,rgba(90,157,239,0.28)_54%,rgba(138,190,248,0.08)_100%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_22%,rgba(255,255,255,0.24),transparent_16%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))]" />
+            <div className="absolute left-0 right-0 top-[66%] h-[3px] bg-[linear-gradient(90deg,rgba(255,255,255,0.1),rgba(255,255,255,0.52),rgba(255,255,255,0.14))] blur-[1px]" />
+
+            <div className="relative mx-auto w-full max-w-[1240px] px-4 pb-28 pt-12 lg:px-6 lg:pb-36 lg:pt-16">
+              <div className="rounded-[36px] border border-white/48 bg-[linear-gradient(180deg,rgba(237,244,255,0.96)_0%,rgba(227,238,252,0.9)_100%)] p-5 pb-24 text-[#12315b] shadow-[0_30px_80px_rgba(39,77,146,0.18)] backdrop-blur-[20px] sm:p-6 sm:pb-28 lg:p-8 lg:pb-32">
+                <div className="flex flex-col gap-4 border-b border-[#d9e5f8] pb-6">
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-[0.22em] text-[#4677cf]">Выбор источника</p>
+                    <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#13345f] sm:text-[2.5rem]">Маркетплейсы и службы доставки</h2>
+                    <p className="mt-3 max-w-[780px] text-base leading-7 text-[#58739d]">
+                      Выберите площадку, откуда нужно забрать заказ. Для части сценариев доступна smart-обработка, для остальных - ручное оформление без потери данных.
+                    </p>
+                  </div>
+
+                </div>
+
+                <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {primaryPaidMarketplaces.map((marketplace) => {
+                    const active = activePickup.marketplace === marketplace.id;
+
+                    return (
+                      <button
+                        key={marketplace.id}
+                        type="button"
+                        onClick={() => updatePickup({ marketplace: marketplace.id, errors: {} })}
+                        className={`group relative flex min-h-[228px] flex-col items-center overflow-hidden rounded-[28px] border px-5 py-6 text-center transition-all duration-200 ${
+                          active
+                            ? "border-[#8cb7ff] bg-[linear-gradient(180deg,#ffffff_0%,#edf5ff_100%)] shadow-[0_22px_40px_rgba(68,117,194,0.16)]"
+                            : "border-[#d7e4f7] bg-white/92 hover:-translate-y-1 hover:border-[#b7cff4] hover:bg-white hover:shadow-[0_20px_34px_rgba(68,117,194,0.12)]"
+                        }`}
+                      >
+                        {active ? (
+                          <span className="absolute bottom-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(180deg,#5e9df1_0%,#487dd6_100%)] text-sm font-bold text-white shadow-[0_12px_24px_rgba(45,90,175,0.22)]">
+                            ✓
                           </span>
-                        </button>
-                      );
-                    })}
+                        ) : null}
+
+                        <span className="flex h-28 w-28 items-center justify-center rounded-[30px] bg-[#f2f6fc] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                          <Image
+                            src={`/marketplaces/${marketplace.asset}`}
+                            alt={humanizeMarketplace(marketplace.id)}
+                            width={156}
+                            height={64}
+                            className={`h-14 w-[156px] object-contain transition duration-200 ${
+                              active ? "" : "grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100"
+                            }`}
+                          />
+                        </span>
+
+                        <div className="mt-8 flex flex-1 items-center justify-center">
+                          <p className="text-center text-[1.35rem] font-extrabold leading-tight text-[#123763]">{humanizeMarketplace(marketplace.id)}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {detmirMarketplace ? (
+                    <button
+                      type="button"
+                      onClick={() => updatePickup({ marketplace: detmirMarketplace.id, errors: {} })}
+                      className={`group relative flex min-h-[228px] flex-col items-center overflow-hidden rounded-[28px] border px-5 py-6 text-center transition-all duration-200 ${
+                        activePickup.marketplace === detmirMarketplace.id
+                          ? "border-[#8cb7ff] bg-[linear-gradient(180deg,#ffffff_0%,#edf5ff_100%)] shadow-[0_22px_40px_rgba(68,117,194,0.16)]"
+                          : "border-[#d7e4f7] bg-white/92 hover:-translate-y-1 hover:border-[#b7cff4] hover:bg-white hover:shadow-[0_20px_34px_rgba(68,117,194,0.12)]"
+                      }`}
+                    >
+                      {activePickup.marketplace === detmirMarketplace.id ? (
+                        <span className="absolute bottom-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(180deg,#5e9df1_0%,#487dd6_100%)] text-sm font-bold text-white shadow-[0_12px_24px_rgba(45,90,175,0.22)]">
+                          ✓
+                        </span>
+                      ) : null}
+
+                      <span className="flex h-28 w-28 items-center justify-center rounded-[30px] bg-[#f2f6fc] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                        <Image
+                          src={`/marketplaces/${detmirMarketplace.asset}`}
+                          alt={humanizeMarketplace(detmirMarketplace.id)}
+                          width={156}
+                          height={64}
+                          className={`h-14 w-[156px] object-contain transition duration-200 ${
+                            activePickup.marketplace === detmirMarketplace.id
+                              ? ""
+                              : "grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100"
+                          }`}
+                        />
+                      </span>
+
+                      <div className="mt-8 flex flex-1 items-center justify-center">
+                        <p className="text-center text-[1.35rem] font-extrabold leading-tight text-[#123763]">{humanizeMarketplace(detmirMarketplace.id)}</p>
+                      </div>
+                    </button>
+                  ) : null}
+
+                  {specialPickupOptions.map((opt) => {
+                    const active = activePickup.marketplace === opt.id;
+
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => updatePickup({ marketplace: opt.id, errors: {} })}
+                        className={`group relative flex min-h-[228px] flex-col items-center overflow-hidden rounded-[28px] border px-5 py-6 text-center transition-all duration-200 ${
+                          active
+                            ? "border-[#8cb7ff] bg-[linear-gradient(180deg,#ffffff_0%,#edf5ff_100%)] shadow-[0_22px_40px_rgba(68,117,194,0.16)]"
+                            : "border-[#d7e4f7] bg-white/90 hover:-translate-y-1 hover:border-[#b7cff4] hover:bg-white hover:shadow-[0_20px_34px_rgba(68,117,194,0.12)]"
+                        }`}
+                      >
+                        <span className="flex h-28 w-28 items-center justify-center rounded-[30px] bg-[#f2f6fc] text-[3.25rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                          {opt.icon}
+                        </span>
+
+                        {active ? (
+                          <span className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(180deg,#5e9df1_0%,#487dd6_100%)] text-sm font-bold text-white shadow-[0_12px_24px_rgba(45,90,175,0.22)]">
+                            ✓
+                          </span>
+                        ) : null}
+
+                        <div className="mt-8 flex flex-1 items-center justify-center">
+                          <p className="text-center text-[1.35rem] font-extrabold leading-tight text-[#123763]">{opt.label}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() => openFlow("pickup_standard")}
+                    className="group relative hidden min-h-[228px] flex-col items-center overflow-hidden rounded-[28px] border border-[#d7e4f7] bg-white/92 px-5 py-6 text-center transition-all duration-200 hover:-translate-y-1 hover:border-[#b7cff4] hover:bg-white hover:shadow-[0_20px_34px_rgba(68,117,194,0.12)] xl:flex"
+                  >
+                    <span className="flex h-28 w-28 items-center justify-center rounded-[30px] bg-[#f2f6fc] text-[3.25rem] text-[#3f74cb] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                      🔗
+                    </span>
+
+                    <div className="mt-8 flex flex-1 items-center justify-center">
+                      <p className="text-center text-[1.35rem] font-extrabold leading-tight text-[#123763]">Заказ по ссылке</p>
+                    </div>
+                  </button>
+                </div>
+
+                {activePickup.marketplace ? (
+                  <div className="fixed bottom-4 left-1/2 z-30 w-[calc(100vw-2rem)] max-w-[1020px] -translate-x-1/2 px-0 sm:bottom-5 sm:w-[calc(100vw-3rem)]">
+                    <div className="rounded-[30px] border border-white/80 bg-white/94 p-4 shadow-[0_24px_60px_rgba(39,77,146,0.22)] backdrop-blur-xl sm:p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#6d88b2]">Выбранный сценарий</p>
+                          <p className="mt-2 truncate text-2xl font-extrabold leading-tight text-[#13345f]">{currentMarketplace}</p>
+                        </div>
+
+                        <PrimaryButton
+                          onClick={continuePickupSelection}
+                          className="min-h-14 w-full rounded-[22px] bg-[linear-gradient(180deg,#4c8ce6_0%,#3b74cf_100%)] text-base font-extrabold shadow-[0_20px_36px_rgba(43,92,180,0.24)] sm:w-[350px]"
+                        >
+                          Продолжить
+                        </PrimaryButton>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {activePickup.errors.marketplace ? (
+                  <div className="mt-8">
+                    <div className="mx-auto max-w-[780px] rounded-[20px] border border-[#f2c9cf] bg-[#fff2f4] px-4 py-3 text-sm font-semibold text-[#c25166]">
+                      {activePickup.errors.marketplace}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        );
+      }
+
+      const standardMarketplaces = marketplaces.filter((marketplace) =>
+        ["wildberries", "ozon", "yandex_market"].includes(marketplace.id),
+      );
+
+      return (
+        <section
+          className="relative overflow-hidden bg-[#3f84e6] bg-cover bg-[position:72%_center] bg-no-repeat"
+          style={{ backgroundImage: "url('/brand/hero-background.png')" }}
+        >
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(43,107,210,0.9)_0%,rgba(65,136,229,0.72)_30%,rgba(90,157,239,0.28)_54%,rgba(138,190,248,0.08)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_22%,rgba(255,255,255,0.24),transparent_16%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))]" />
+          <div className="absolute left-0 right-0 top-[66%] h-[3px] bg-[linear-gradient(90deg,rgba(255,255,255,0.1),rgba(255,255,255,0.52),rgba(255,255,255,0.14))] blur-[1px]" />
+
+          <div className="relative mx-auto w-full max-w-[1240px] px-4 pb-28 pt-12 lg:px-6 lg:pb-36 lg:pt-16">
+            <div className="rounded-[36px] border border-white/48 bg-[linear-gradient(180deg,rgba(237,244,255,0.96)_0%,rgba(227,238,252,0.9)_100%)] p-5 pb-24 text-[#12315b] shadow-[0_30px_80px_rgba(39,77,146,0.18)] backdrop-blur-[20px] sm:p-6 sm:pb-28 lg:p-8 lg:pb-32">
+              <div className="flex flex-col gap-4 border-b border-[#d9e5f8] pb-6">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-[0.22em] text-[#4677cf]">Заказ по ссылке</p>
+                  <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#13345f] sm:text-[2.5rem]">Выберите маркетплейс</h2>
+                  <p className="mt-3 max-w-[780px] text-base leading-7 text-[#58739d]">
+                    Выберите площадку, на которой находится товар. После этого вы перейдёте к оформлению заказа по ссылке, заполнению данных и выбору пункта выдачи.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {standardMarketplaces.map((marketplace) => {
+                  const active = activePickup.marketplace === marketplace.id;
+
+                  return (
+                    <button
+                      key={marketplace.id}
+                      type="button"
+                      onClick={() => updatePickup({ marketplace: marketplace.id, errors: {} })}
+                      className={`group relative flex min-h-[228px] flex-col items-center overflow-hidden rounded-[28px] border px-5 py-6 text-center transition-all duration-200 ${
+                        active
+                          ? "border-[#8cb7ff] bg-[linear-gradient(180deg,#ffffff_0%,#edf5ff_100%)] shadow-[0_22px_40px_rgba(68,117,194,0.16)]"
+                          : "border-[#d7e4f7] bg-white/92 hover:-translate-y-1 hover:border-[#b7cff4] hover:bg-white hover:shadow-[0_20px_34px_rgba(68,117,194,0.12)]"
+                      }`}
+                    >
+                      {active ? (
+                        <span className="absolute bottom-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(180deg,#5e9df1_0%,#487dd6_100%)] text-sm font-bold text-white shadow-[0_12px_24px_rgba(45,90,175,0.22)]">
+                          ✓
+                        </span>
+                      ) : null}
+
+                      <span className="flex h-28 w-28 items-center justify-center rounded-[30px] bg-[#f2f6fc] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                        <Image
+                          src={`/marketplaces/${marketplace.asset}`}
+                          alt={humanizeMarketplace(marketplace.id)}
+                          width={156}
+                          height={64}
+                          className={`h-14 w-[156px] object-contain transition duration-200 ${
+                            active ? "" : "grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100"
+                          }`}
+                        />
+                      </span>
+
+                      <div className="mt-8 flex flex-1 items-center justify-center">
+                        <p className="text-center text-[1.35rem] font-extrabold leading-tight text-[#123763]">{humanizeMarketplace(marketplace.id)}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {activePickup.errors.marketplace ? (
+                <div className="mt-8">
+                  <div className="mx-auto max-w-[780px] rounded-[20px] border border-[#f2c9cf] bg-[#fff2f4] px-4 py-3 text-sm font-semibold text-[#c25166]">
+                    {activePickup.errors.marketplace}
                   </div>
                 </div>
               ) : null}
-            </MarketplaceGrid>
-          </div>
-          {activePickup.errors.marketplace ? (
-            <p className="mt-4 text-center text-sm font-semibold text-[color:var(--danger)]">{activePickup.errors.marketplace}</p>
-          ) : null}
-          <div className="sticky bottom-5 z-20 mx-auto mt-8 flex max-w-2xl items-center justify-between gap-4 rounded-[30px] border border-white/70 bg-white/88 p-4 shadow-[0_24px_60px_rgba(84,58,128,0.14)] backdrop-blur">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">Выбрано</p>
-              <p className="mt-1 text-base font-semibold text-[color:var(--foreground)]">{currentMarketplace}</p>
             </div>
-            <PrimaryButton onClick={continuePickupSelection}>Продолжить</PrimaryButton>
+
+            <div className="fixed bottom-4 left-1/2 z-30 w-[calc(100vw-2rem)] max-w-[1020px] -translate-x-1/2 px-0 sm:bottom-5 sm:w-[calc(100vw-3rem)]">
+              <div className="rounded-[30px] border border-white/80 bg-white/94 p-4 shadow-[0_24px_60px_rgba(39,77,146,0.22)] backdrop-blur-xl sm:p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#6d88b2]">Выбранный сценарий</p>
+                    <p className="mt-2 truncate text-2xl font-extrabold leading-tight text-[#13345f]">{currentMarketplace}</p>
+                  </div>
+
+                  <PrimaryButton
+                    onClick={continuePickupSelection}
+                    className="min-h-14 w-full rounded-[22px] bg-[linear-gradient(180deg,#4c8ce6_0%,#3b74cf_100%)] text-base font-extrabold shadow-[0_20px_36px_rgba(43,92,180,0.24)] sm:w-[350px]"
+                  >
+                    Продолжить
+                  </PrimaryButton>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       );
     }
 
     if (activePickup.step === 2) {
+      const pickupStepTitle = paid ? (usesTrackingPickupFields ? "Заполните данные для получения" : "Загрузите код и заполните детали") : "Детали заказа";
+      const pickupStepDescription =
+        paid
+          ? isCdekPaid
+            ? "Укажите имя, фамилию, телефон и заполните трек-номер или номер отправления ИМ. Код получения и скриншот отправления можно добавить по желанию."
+            : isTrackingCodePaid
+              ? "Укажите имя, фамилию, телефон, трек-номер и код получения. Скриншот отправления можно приложить по желанию."
+              : "Заполните данные клиента и загрузите QR или штрих-код. Мы сохраним заказ отдельным сценарием без смешивания со стандартной доставкой."
+          : "Заполните форму ниже, чтобы мы могли обработать заказ с максимальной точностью.";
+
       return (
-        <FlowShell
-          eyebrow=""
-          title={paid ? (usesTrackingPickupFields ? "Заполните данные для получения" : "Загрузите код и заполните детали") : "Детали заказа"}
-          description={
-            paid
-              ? isCdekPaid
-                ? "Укажите имя, фамилию, телефон и заполните трек-номер или номер отправления ИМ. Код получения и скриншот отправления можно добавить по желанию."
-                : isTrackingCodePaid
-                  ? "Укажите имя, фамилию, телефон, трек-номер и код получения. Скриншот отправления можно приложить по желанию."
-                  : "Заполните данные клиента и загрузите QR или штрих-код. Мы сохраним заказ отдельным сценарием без смешивания со стандартной доставкой."
-              : "Заполните форму ниже, чтобы мы могли обработать заказ с максимальной точностью"
-          }
-          stepLabel={pickupStepLabel}
-          notice={paid && activePickup.marketplace ? paidMarketplaceNotices[activePickup.marketplace] : undefined}
-          align="center"
-          className="mx-auto max-w-[760px]"
+        <section
+          className="relative overflow-hidden bg-[#4a8de7] bg-cover bg-[position:72%_center] bg-no-repeat"
+          style={{ backgroundImage: "url('/brand/hero-background.png')" }}
         >
-          <form
-            className="space-y-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submitPickup();
-            }}
-          >
-            <div className="rounded-[24px] bg-[color:var(--surface-subtle)] px-5 py-4 text-sm leading-7 text-[color:var(--muted)]">
-              Выбран маркетплейс: <span className="font-semibold text-[color:var(--foreground)]">{currentMarketplace}</span>
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(51,114,214,0.96)_0%,rgba(86,148,232,0.82)_34%,rgba(150,198,248,0.26)_64%,rgba(255,255,255,0)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.6),transparent_17%),linear-gradient(90deg,rgba(255,255,255,0)_46%,rgba(255,255,255,0.74)_100%)]" />
+          <div className="absolute -left-28 top-1/2 h-[580px] w-[580px] -translate-y-1/2 rounded-full border border-white/18" />
+          <div className="absolute -left-10 bottom-[-180px] h-[440px] w-[440px] rounded-full border border-white/18" />
+
+          <div className="relative mx-auto w-full max-w-[1240px] px-4 pb-20 pt-12 lg:px-6 lg:pb-24 lg:pt-16">
+            <div className="mx-auto max-w-[980px] rounded-[36px] border border-white/46 bg-[linear-gradient(180deg,rgba(237,244,255,0.96)_0%,rgba(227,238,252,0.9)_100%)] p-5 text-[#12315b] shadow-[0_30px_80px_rgba(39,77,146,0.18)] backdrop-blur-[20px] sm:p-6 lg:p-8">
+              <div className="flex flex-col gap-5 border-b border-[#d9e5f8] pb-6 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-[0.22em] text-[#4677cf]">
+                    {paid ? "Оформление получения" : "Заказ по ссылке"}
+                  </p>
+                  <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#13345f] sm:text-[2.5rem]">
+                    {pickupStepTitle}
+                  </h2>
+                  <p className="mt-3 max-w-[760px] text-base leading-7 text-[#58739d]">
+                    {pickupStepDescription}
+                  </p>
+                </div>
+
+                <div className="inline-flex w-fit items-center rounded-full border border-white/60 bg-white/72 px-5 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b7eb4] shadow-[0_12px_24px_rgba(39,77,146,0.08)]">
+                  {pickupStepLabel}
+                </div>
+              </div>
+
+              {paid && activePickup.marketplace ? (
+                <div className="mt-6 rounded-[24px] border border-[#f2d79b] bg-[linear-gradient(180deg,rgba(255,250,236,0.96)_0%,rgba(255,245,214,0.92)_100%)] px-5 py-4 text-sm leading-7 text-[#5c4a1d] shadow-[0_12px_26px_rgba(160,123,35,0.08)]">
+                  {paidMarketplaceNotices[activePickup.marketplace]}
+                </div>
+              ) : null}
+
+              <form
+                className="sarma-pickup-form mt-8 space-y-5"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void submitPickup();
+                }}
+              >
+            <div className="rounded-[24px] border border-white/65 bg-[linear-gradient(180deg,#ffffff_0%,#eef5ff_100%)] px-5 py-4 text-sm leading-7 text-[#5f789d] shadow-[0_14px_28px_rgba(39,77,146,0.08)]">
+              Выбран маркетплейс: <span className="font-semibold text-[#13345f]">{currentMarketplace}</span>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Имя" htmlFor={`${activeFlow}-firstName`} error={activePickup.errors.firstName}>
@@ -1577,6 +1948,7 @@ export function SuperboxApp() {
                     id={`${activeFlow}-productAttachment`}
                     accept=".jpg,.jpeg,.png,.pdf"
                     file={activePickup.productAttachment}
+                    variant="sarma"
                     onChange={(file) => updatePickup({ productAttachment: file })}
                   />
                 </Field>
@@ -1590,6 +1962,7 @@ export function SuperboxApp() {
                     id={`${activeFlow}-attachment`}
                     accept=".jpg,.jpeg,.png,.pdf"
                     file={activePickup.attachment}
+                    variant="sarma"
                     onChange={(file) => updatePickup({ attachment: file })}
                   />
                 </Field>
@@ -1679,6 +2052,7 @@ export function SuperboxApp() {
                     id={`${activeFlow}-attachment`}
                     accept=".jpg,.jpeg,.png,.pdf"
                     file={activePickup.attachment}
+                    variant="sarma"
                     onChange={(file) => updatePickup({ attachment: file })}
                   />
                 </Field>
@@ -1709,6 +2083,7 @@ export function SuperboxApp() {
                     id={`${activeFlow}-attachment`}
                     accept=".jpg,.jpeg,.png,.pdf"
                     file={activePickup.attachment}
+                    variant="sarma"
                     onChange={(file) => updatePickup({ attachment: file })}
                   />
                 </Field>
@@ -1893,6 +2268,7 @@ export function SuperboxApp() {
                         id={`${activeFlow}-attachment`}
                         accept=".jpg,.jpeg,.png,.pdf"
                         file={activePickup.attachment}
+                        variant="sarma"
                         onChange={(file) => updatePickup({ attachment: file })}
                       />
                     </Field>
@@ -1964,6 +2340,7 @@ export function SuperboxApp() {
                         accept=".jpg,.jpeg,.png,.pdf"
                         files={activePickup.bulkyAttachments}
                         maxFiles={bulkyAttachmentLimit}
+                        variant="sarma"
                         onChange={setBulkyAttachments}
                       />
                       {activePickup.bulkyAttachments.length > 0 ? (
@@ -2009,6 +2386,7 @@ export function SuperboxApp() {
                         id={`${activeFlow}-attachment`}
                         accept=".jpg,.jpeg,.png,.pdf"
                         file={activePickup.attachment}
+                        variant="sarma"
                         onChange={(file) => updatePickup({ attachment: file })}
                       />
                       <div className="hidden">
@@ -2074,6 +2452,7 @@ export function SuperboxApp() {
                 value={activePickup.pickupPoint}
                 onChange={(pickupPoint) => updatePickup({ pickupPoint: pickupPoint as PickupPointId | "", errors: { ...activePickup.errors, pickupPoint: "" } })}
                 placeholder="Выберите пункт выдачи"
+                variant="sarma"
                 options={pickupPointOptions.map((pickupPoint) => ({
                   value: pickupPoint.id,
                   label: pickupPoint.label,
@@ -2107,15 +2486,25 @@ export function SuperboxApp() {
             ) : null}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-              <SecondaryButton type="button" onClick={() => updatePickup({ step: 1, errors: {} })}>
+              <SecondaryButton
+                type="button"
+                onClick={() => updatePickup({ step: 1, errors: {} })}
+                className="rounded-[22px] border-white/70 bg-white/92 px-8 text-[#173862] shadow-[0_14px_28px_rgba(39,77,146,0.08)]"
+              >
                 Назад
               </SecondaryButton>
-              <PrimaryButton type="submit" disabled={pending}>
+              <PrimaryButton
+                type="submit"
+                disabled={pending}
+                className="rounded-[22px] bg-[linear-gradient(180deg,#4c8ce6_0%,#3b74cf_100%)] px-8 text-base font-extrabold shadow-[0_20px_36px_rgba(43,92,180,0.24)]"
+              >
                 {pending ? "Создаём..." : "Продолжить"}
               </PrimaryButton>
             </div>
-          </form>
-        </FlowShell>
+              </form>
+            </div>
+          </div>
+        </section>
       );
     }
 
@@ -2282,74 +2671,121 @@ export function SuperboxApp() {
   };
 
   const renderLookupFlow = () => (
-    <section className="mx-auto max-w-[920px]">
-      <SectionIntro
-        eyebrow=""
-        title="Отследить посылку"
-        description="Введите номер отслеживания или номер заказа, чтобы мгновенно узнать текущий статус доставки."
-        centered
-      />
-      <div className="mt-8 rounded-[34px] border border-white/70 bg-white/92 p-4 shadow-[0_24px_60px_rgba(84,58,128,0.1)]">
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Input
-            id="lookup-order"
-            autoFocus
-            inputMode="text"
-            placeholder="ID заказа или +7 (___) ___-__-__"
-            value={lookupNumber}
-            onChange={(event) => setLookupNumber(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                void submitLookup();
-              }
-            }}
-            className="flex-1 border-0 bg-[color:var(--surface-subtle)] shadow-none"
-          />
-          <PrimaryButton onClick={() => void submitLookup()} disabled={pending} className="min-w-[160px]">
-            {pending ? "Ищем..." : "Поиск"}
-          </PrimaryButton>
+    <>
+      <section
+        className="relative overflow-hidden bg-[#4a8de7] bg-cover bg-[position:72%_center] bg-no-repeat"
+        style={{ backgroundImage: "url('/brand/hero-background.png')" }}
+      >
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(51,114,214,0.96)_0%,rgba(86,148,232,0.82)_34%,rgba(150,198,248,0.26)_64%,rgba(255,255,255,0)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.6),transparent_17%),linear-gradient(90deg,rgba(255,255,255,0)_46%,rgba(255,255,255,0.74)_100%)]" />
+        <div className="absolute -left-28 top-1/2 h-[580px] w-[580px] -translate-y-1/2 rounded-full border border-white/18" />
+        <div className="absolute -left-10 bottom-[-180px] h-[440px] w-[440px] rounded-full border border-white/18" />
+        <div className="absolute left-[6%] top-[56%] hidden h-36 w-44 opacity-35 lg:block">
+          <LookupDotPattern />
         </div>
-      </div>
-      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        {lookupChips.map((chip) => (
-          <span key={chip} className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[color:var(--muted)] shadow-[0_10px_24px_rgba(84,58,128,0.05)]">
-            {chip}
-          </span>
-        ))}
-      </div>
-      {lookupError ? <p className="mt-4 text-center text-sm font-semibold text-[color:var(--danger)]">{lookupError}</p> : null}
-      <div className="mt-10 rounded-[36px] border border-white/70 bg-white/78 p-6 shadow-[0_24px_60px_rgba(84,58,128,0.08)]">
-        {lookupOrders.length > 0 ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[26px] bg-white/88 px-5 py-4 shadow-[0_10px_24px_rgba(84,58,128,0.05)]">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--muted)]">Результаты поиска</p>
-                <p className="mt-1 text-sm text-[color:var(--foreground)]">
-                  Найдено заказов: <span className="font-semibold">{lookupOrders.length}</span>
-                </p>
+
+        <div className="relative mx-auto flex min-h-[calc(100vh-92px)] w-full max-w-[1320px] items-center justify-center px-4 py-16 lg:px-6 lg:py-20">
+          <div className="z-10 flex w-full max-w-[980px] flex-col items-center text-center">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/36 bg-white/12 px-4 py-2 text-sm font-semibold text-white/92 backdrop-blur-sm">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#9fd0ff]" />
+              Отслеживание отправлений
+            </div>
+
+            <h1 className="mt-6 max-w-[760px] text-4xl font-extrabold leading-[1.05] text-white drop-shadow-[0_16px_34px_rgba(20,56,120,0.22)] sm:text-5xl lg:text-[4rem]">
+              Отследить
+              <br />
+              посылку
+            </h1>
+
+            <p className="mt-5 max-w-[720px] text-base leading-7 text-white/86 sm:text-lg">
+              Введите номер отслеживания, заказа или телефон клиента, чтобы сразу увидеть текущий статус доставки и карточки найденных отправлений.
+            </p>
+
+            <div className="mt-10 w-full max-w-[900px] rounded-[32px] border border-white/40 bg-[linear-gradient(180deg,rgba(255,255,255,0.26)_0%,rgba(255,255,255,0.14)_100%)] p-4 shadow-[0_28px_80px_rgba(28,78,160,0.22)] backdrop-blur-[22px] sm:p-5">
+              <div className="mb-3 text-center">
+                <span className="inline-flex items-center rounded-full border border-white/45 bg-white/14 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.24em] text-white/90">
+                  Поиск по номеру, заказу или телефону
+                </span>
               </div>
-              <div className="rounded-full bg-[color:var(--surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--accent-strong)]">
+
+              <div className="grid items-center gap-3 lg:grid-cols-[minmax(0,1fr)_210px]">
+                <label className="flex min-h-[74px] items-center gap-4 rounded-[26px] border border-white/55 bg-white px-5 shadow-[0_16px_34px_rgba(31,74,144,0.12),inset_0_1px_0_rgba(255,255,255,0.7)]">
+                  <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(180deg,#eef5ff_0%,#dfeafb_100%)] text-[#2d62c6] shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]">
+                    <LookupLensIcon />
+                  </span>
+                  <div className="flex min-h-[52px] min-w-0 flex-1 items-center text-left">
+                    <Input
+                      id="lookup-order"
+                      autoFocus
+                      inputMode="text"
+                      placeholder="Номер заказа или +7(___)___-__-__"
+                      value={lookupNumber}
+                      onChange={(event) => setLookupNumber(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void submitLookup();
+                        }
+                      }}
+                      className="h-auto !border-0 bg-transparent px-0 py-0 text-[1.15rem] font-bold leading-none !text-[#163766] !shadow-none outline-none ring-0 placeholder:text-[#a3b1c7] focus:!outline-none focus:!ring-0 focus-visible:!outline-none focus-visible:!ring-0"
+                    />
+                  </div>
+                </label>
+
+                <PrimaryButton
+                  onClick={() => void submitLookup()}
+                  disabled={pending}
+                  className="min-h-[74px] w-full rounded-[26px] bg-[linear-gradient(180deg,#4c8ce6_0%,#3b74cf_100%)] px-10 text-lg font-extrabold shadow-[0_20px_36px_rgba(43,92,180,0.28)]"
+                >
+                  {pending ? "Ищем..." : "Поиск"}
+                </PrimaryButton>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                {lookupChips.map((chip) => (
+                  <span
+                    key={chip}
+                    className="rounded-full border border-white/55 bg-white/88 px-4 py-2 text-sm font-semibold text-[#5f789d] shadow-[0_12px_26px_rgba(24,60,130,0.08)]"
+                  >
+                    {chip}
+                  </span>
+                ))}
+              </div>
+
+              {lookupError ? (
+                <p className="mt-4 rounded-[20px] border border-[rgba(220,38,38,0.2)] bg-[rgba(255,255,255,0.76)] px-4 py-3 text-sm font-semibold text-[#c73939]">
+                  {lookupError}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {lookupOrders.length > 0 ? (
+      <section className="relative z-10 mx-auto -mt-10 w-full max-w-[1240px] px-4 pb-20 lg:px-6">
+        <div className="rounded-[34px] border border-[#dce6f4] bg-white px-5 py-6 shadow-[0_28px_60px_rgba(16,45,88,0.12)] sm:px-7 sm:py-8">
+          <div className="space-y-5">
+            <div className="flex flex-col gap-4 rounded-[28px] bg-[linear-gradient(180deg,#f6faff_0%,#eef4fe_100%)] px-5 py-5 ring-1 ring-[#dbe6f5] sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#5b7eb4]">Результаты поиска</p>
+                <h2 className="mt-2 text-2xl font-extrabold text-[#122b52]">Найдено заказов: {lookupOrders.length}</h2>
+              </div>
+              <div className="inline-flex w-fit items-center rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-[#396dc9] shadow-[0_12px_24px_rgba(36,78,150,0.08)]">
                 {lookupHideSensitiveDetails ? "Поиск по телефону" : lookupOrders[0]?.customer.phone}
               </div>
             </div>
-            {lookupOrders.map((order) => (
-              <OrderSummaryCard key={order.id} order={order} compact hideSensitiveDetails={lookupHideSensitiveDetails} />
-            ))}
-          </div>
-        ) : (
-          <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
-            <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-[color:var(--surface-soft)] text-3xl text-[color:var(--muted)]">
-              ⌕
+
+            <div className="space-y-4">
+              {lookupOrders.map((order) => (
+                <OrderSummaryCard key={order.id} order={order} compact hideSensitiveDetails={lookupHideSensitiveDetails} />
+              ))}
             </div>
-            <h2 className="mt-6 font-[family-name:var(--font-display)] text-4xl leading-none text-[color:var(--foreground)]">Введите данные для поиска</h2>
-            <p className="mt-4 max-w-lg text-base leading-8 text-[color:var(--muted)]">
-              Как только номер будет найден, покажем статус, логистику и основные данные заказа.
-            </p>
           </div>
-        )}
-      </div>
-    </section>
+        </div>
+      </section>
+      ) : null}
+    </>
   );
 
   const renderCancelFlow = () => (
@@ -2504,272 +2940,268 @@ export function SuperboxApp() {
   ];
 
   const renderShipRussiaFlow = () => (
-    <section className="mx-auto w-full max-w-[1180px] space-y-6">
-      <section className="soft-card overflow-hidden rounded-[36px] px-6 py-8 sm:px-8 sm:py-10 lg:px-10">
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-          <div className="max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[color:var(--accent-strong)]">Отправка по России из ДНР</p>
-            <h1 className="mt-5 font-[family-name:var(--font-display)] text-4xl leading-[0.95] text-[color:var(--foreground)] sm:text-5xl lg:text-6xl">
-              Отправка посылок по России
-            </h1>
-            <p className="mt-5 text-xl font-semibold text-[color:var(--foreground)]">Быстро. Без очередей. В одном месте.</p>
-            <p className="mt-4 text-base leading-8 text-[color:var(--muted)]">
-              Отправляйте документы, вещи и технику по всей России через удобный сервис «одного окна».
-            </p>
-          </div>
-          <div className="relative">
-            <div className="relative aspect-[1.16/1]">
-              <Image
-                src="/ship-russia-main-pastel.png"
-                alt="Доставка по России в пастельных тонах"
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 42vw"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
+    <section
+      className="relative overflow-hidden bg-[#4a8de7] bg-cover bg-[position:72%_center] bg-no-repeat"
+      style={{ backgroundImage: "url('/brand/hero-background.png')" }}
+    >
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(51,114,214,0.96)_0%,rgba(86,148,232,0.82)_34%,rgba(150,198,248,0.26)_64%,rgba(255,255,255,0)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.6),transparent_17%),linear-gradient(90deg,rgba(255,255,255,0)_46%,rgba(255,255,255,0.74)_100%)]" />
+      <div className="absolute -left-28 top-1/2 h-[580px] w-[580px] -translate-y-1/2 rounded-full border border-white/18" />
+      <div className="absolute -left-10 bottom-[-180px] h-[440px] w-[440px] rounded-full border border-white/18" />
 
-      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Почему выбирают нас</p>
-            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
-              Сервис без очередей и лишней суеты
-            </h2>
-            <div className="mt-6 grid gap-3">
-              {shipRussiaAdvantages.map((item) => (
-                <div key={item} className="rounded-[22px] bg-[color:var(--surface-soft)] px-4 py-3 text-base font-medium text-[color:var(--foreground)]">
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="relative">
-            <div className="relative aspect-[1.16/1]">
-              <Image
-                src="/ship-russia-pastel-packing-station.png"
-                alt="Станция упаковки в пастельных тонах"
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 42vw"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Подготовка отправления</p>
-            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
-              Мы полностью подготовим вашу посылку к отправке
-            </h2>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {shipRussiaPackaging.map((item) => (
-                <div key={item} className="rounded-[24px] border border-[color:var(--line)] bg-white/92 px-4 py-4">
-                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">В наличии</p>
-                  <p className="mt-3 text-lg font-semibold text-[color:var(--foreground)]">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="relative">
-            <div className="relative aspect-[1.16/1]">
-              <Image
-                src="/ship-russia-purple-packing-materials.png"
-                alt="Упаковочные материалы с фиолетовыми акцентами"
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 42vw"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Что можно отправить</p>
-            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
-              Допустимые категории отправлений
-            </h2>
-            <div className="mt-6 grid gap-3">
-              {shipRussiaAllowed.map((item) => (
-                <div key={item} className="flex items-start gap-3 rounded-[22px] bg-[color:var(--surface-soft)] px-4 py-3">
-                  <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm text-[color:var(--accent-strong)] shadow-[0_8px_18px_rgba(84,58,128,0.06)]">
-                    ✓
-                  </span>
-                  <span className="text-base font-medium text-[color:var(--foreground)]">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="relative">
-            <div className="relative aspect-[1.16/1]">
-              <Image
-                src="/ship-russia-allowed-items-111.png"
-                alt="Разрешённые категории отправлений"
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 42vw"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-[32px] border border-[rgba(239,68,68,0.16)] bg-[linear-gradient(135deg,rgba(255,248,248,0.94),rgba(255,255,255,0.9))] px-6 py-7 shadow-[0_18px_40px_rgba(239,68,68,0.06)] sm:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:#c2410c]">Что нельзя отправлять</p>
-            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
-              Запрещённые категории
-            </h2>
-            <div className="mt-6 grid gap-3">
-              {shipRussiaForbidden.map((item) => (
-                <div key={item} className="rounded-[22px] border border-[rgba(239,68,68,0.12)] bg-white/88 px-4 py-3 text-base font-medium text-[color:var(--foreground)]">
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="relative">
-            <div className="relative aspect-[1.16/1]">
-              <Image
-                src="/ship-russia-restricted-items-222.png"
-                alt="Ограничения на отправку"
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 42vw"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Контроль доставки</p>
-            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
-              Полный контроль и защита отправлений
-            </h2>
-            <div className="mt-6 grid gap-4">
-              <div className="rounded-[24px] bg-[color:var(--surface-soft)] p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Полный контроль доставки</p>
-                <ul className="mt-4 space-y-3 text-base leading-7 text-[color:var(--foreground)]">
-                  {shipRussiaDeliveryControl.map((item) => (
-                    <li key={item}>• {item}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-[24px] bg-[color:var(--surface-soft)] p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Защита ваших отправлений</p>
-                <ul className="mt-4 space-y-3 text-base leading-7 text-[color:var(--foreground)]">
-                  {shipRussiaProtection.map((item) => (
-                    <li key={item}>• {item}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-[24px] border border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.07)] p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:#b45309]">Удобная оплата</p>
-                <ul className="mt-4 space-y-3 text-base leading-7 text-[color:var(--foreground)]">
-                  {shipRussiaPayment.map((item) => (
-                    <li key={item}>{item === "Без наложенного платежа" ? "❗️ Без наложенного платежа" : `• ${item}`}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-          <div className="relative min-h-[320px] lg:min-h-full">
-            <div className="relative h-full min-h-[320px]">
-              <Image
-                src="/ship-russia-tracking-protection.png"
-                alt="Доставка под защитой и отслеживанием"
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 42vw"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Как это работает</p>
-            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
-              Путь отправления шаг за шагом
-            </h2>
-            <div className="mt-6 grid gap-3">
-              {shipRussiaSteps.map((item, index) => (
-                <div key={item} className="flex items-center gap-4 rounded-[24px] bg-[color:var(--surface-soft)] px-4 py-4">
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-[color:var(--accent-strong)] shadow-[0_10px_22px_rgba(84,58,128,0.08)]">
-                    {index + 1}
-                  </span>
-                  <span className="text-base font-medium text-[color:var(--foreground)]">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="flex min-h-[340px] items-center justify-center lg:min-h-full">
-            <div className="relative h-[360px] w-full max-w-[430px] sm:h-[390px] lg:h-[430px] lg:max-w-[470px]">
-              <Image
-                src="/ship-russia-step-by-step-photoroom.png"
-                alt="Процесс доставки шаг за шагом"
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 42vw"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="flow-surface rounded-[32px] px-6 py-7 sm:px-8">
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)]">Контакты</p>
-            <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-none text-[color:var(--foreground)] sm:text-4xl">
-              Остались вопросы?
-            </h2>
-            <div className="mt-6 grid gap-3">
-              <div className="rounded-[22px] bg-[color:var(--surface-soft)] px-4 py-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Написать прямо сейчас</p>
-                <p className="mt-2 text-base leading-7 text-[color:var(--foreground)]">
-                  Свяжитесь с нами в Telegram и получите консультацию по отправке.
+      <div className="relative mx-auto w-full max-w-[1320px] px-4 pb-20 pt-12 lg:px-6 lg:pb-24 lg:pt-16">
+        <div className="grid gap-6">
+          <section className="rounded-[36px] border border-white/44 bg-[linear-gradient(180deg,rgba(237,244,255,0.96)_0%,rgba(227,238,252,0.9)_100%)] px-6 py-8 text-[#12315b] shadow-[0_30px_80px_rgba(39,77,146,0.18)] backdrop-blur-[20px] sm:px-8 sm:py-10 lg:px-10">
+            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+              <div className="max-w-2xl">
+                <p className="text-sm font-black uppercase tracking-[0.22em] text-[#4677cf]">Отправка по России из ДНР</p>
+                <h1 className="mt-5 text-4xl font-extrabold leading-[0.95] text-[#13345f] sm:text-5xl lg:text-[4rem]">
+                  Отправка посылок по
+                  <br />
+                  России
+                </h1>
+                <p className="mt-5 text-xl font-bold text-[#173862]">Быстро. Без очередей. В одном месте.</p>
+                <p className="mt-4 text-base leading-8 text-[#5d789f]">
+                  Отправляйте документы, вещи и технику по всей России через удобный сервис «одного окна».
                 </p>
               </div>
-              <div className="rounded-[22px] bg-[color:var(--surface-soft)] px-4 py-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Позвонить</p>
-                <p className="mt-2 text-xl font-semibold text-[color:var(--foreground)]">+7 (949) 854-27-85</p>
-              </div>
-              <div className="rounded-[22px] border border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.07)] px-4 py-4">
-                <p className="text-lg font-semibold text-[color:var(--foreground)]">Отправьте посылку уже сегодня</p>
-                <p className="mt-2 text-base leading-7 text-[color:var(--foreground)]">
-                  Быстро оформим, надежно упакуем и доставим по России.
-                </p>
+              <div className="relative">
+                <div className="relative aspect-[1.16/1]">
+                  <Image
+                    src="/ship-russia-main-pastel.png"
+                    alt="Доставка по России в пастельных тонах"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 1024px) 100vw, 42vw"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-          <div className="relative">
-            <div className="relative aspect-[1.16/1]">
-              <Image
-                src="/ship-russia-contact-333.png"
-                alt="Контакты и доставка"
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 42vw"
-              />
+          </section>
+
+          <section className="rounded-[34px] border border-white/44 bg-white/95 px-6 py-7 text-[#12315b] shadow-[0_30px_70px_rgba(39,77,146,0.16)] backdrop-blur-xl sm:px-8">
+            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d88b2]">Почему выбирают нас</p>
+                <h2 className="mt-4 text-3xl font-extrabold leading-none text-[#123763] sm:text-4xl">Сервис без очередей и лишней суеты</h2>
+                <div className="mt-6 grid gap-3">
+                  {shipRussiaAdvantages.map((item) => (
+                    <div key={item} className="rounded-[22px] bg-[linear-gradient(180deg,#f6faff_0%,#edf4fe_100%)] px-4 py-3 text-base font-semibold text-[#173862] ring-1 ring-[#dbe6f5]">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <div className="relative aspect-[1.16/1]">
+                  <Image
+                    src="/ship-russia-pastel-packing-station.png"
+                    alt="Станция упаковки в пастельных тонах"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 1024px) 100vw, 42vw"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
+
+          <section className="rounded-[34px] border border-white/44 bg-white/95 px-6 py-7 text-[#12315b] shadow-[0_30px_70px_rgba(39,77,146,0.16)] backdrop-blur-xl sm:px-8">
+            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d88b2]">Подготовка отправления</p>
+                <h2 className="mt-4 text-3xl font-extrabold leading-none text-[#123763] sm:text-4xl">Мы полностью подготовим вашу посылку к отправке</h2>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  {shipRussiaPackaging.map((item) => (
+                    <div key={item} className="rounded-[24px] border border-[#dce6f4] bg-[linear-gradient(180deg,#ffffff_0%,#f6faff_100%)] px-4 py-4 shadow-[0_14px_28px_rgba(39,77,146,0.08)]">
+                      <p className="text-sm font-black uppercase tracking-[0.16em] text-[#7a92b7]">В наличии</p>
+                      <p className="mt-3 text-lg font-bold text-[#173862]">{item}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <div className="relative aspect-[1.16/1]">
+                  <Image
+                    src="/ship-russia-purple-packing-materials.png"
+                    alt="Упаковочные материалы с фиолетовыми акцентами"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 1024px) 100vw, 42vw"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[34px] border border-white/44 bg-white/95 px-6 py-7 text-[#12315b] shadow-[0_30px_70px_rgba(39,77,146,0.16)] backdrop-blur-xl sm:px-8">
+            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d88b2]">Что можно отправить</p>
+                <h2 className="mt-4 text-3xl font-extrabold leading-none text-[#123763] sm:text-4xl">Допустимые категории отправлений</h2>
+                <div className="mt-6 grid gap-3">
+                  {shipRussiaAllowed.map((item) => (
+                    <div key={item} className="flex items-start gap-3 rounded-[22px] bg-[linear-gradient(180deg,#f6faff_0%,#edf4fe_100%)] px-4 py-3 ring-1 ring-[#dbe6f5]">
+                      <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-bold text-[#4677cf] shadow-[0_8px_18px_rgba(39,77,146,0.08)]">
+                        ✓
+                      </span>
+                      <span className="text-base font-semibold text-[#173862]">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <div className="relative aspect-[1.16/1]">
+                  <Image
+                    src="/ship-russia-allowed-items-111.png"
+                    alt="Разрешённые категории отправлений"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 1024px) 100vw, 42vw"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[34px] border border-[rgba(239,68,68,0.2)] bg-[linear-gradient(180deg,rgba(255,248,248,0.98)_0%,rgba(255,255,255,0.95)_100%)] px-6 py-7 text-[#12315b] shadow-[0_30px_70px_rgba(140,50,66,0.12)] backdrop-blur-xl sm:px-8">
+            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#c2410c]">Что нельзя отправлять</p>
+                <h2 className="mt-4 text-3xl font-extrabold leading-none text-[#123763] sm:text-4xl">Запрещённые категории</h2>
+                <div className="mt-6 grid gap-3">
+                  {shipRussiaForbidden.map((item) => (
+                    <div key={item} className="rounded-[22px] border border-[rgba(239,68,68,0.14)] bg-white px-4 py-3 text-base font-semibold text-[#173862] shadow-[0_12px_24px_rgba(140,50,66,0.06)]">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <div className="relative aspect-[1.16/1]">
+                  <Image
+                    src="/ship-russia-restricted-items-222.png"
+                    alt="Ограничения на отправку"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 1024px) 100vw, 42vw"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[34px] border border-white/44 bg-white/95 px-6 py-7 text-[#12315b] shadow-[0_30px_70px_rgba(39,77,146,0.16)] backdrop-blur-xl sm:px-8">
+            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d88b2]">Контроль доставки</p>
+                <h2 className="mt-4 text-3xl font-extrabold leading-none text-[#123763] sm:text-4xl">Полный контроль и защита отправлений</h2>
+                <div className="mt-6 grid gap-4">
+                  <div className="rounded-[24px] bg-[linear-gradient(180deg,#f6faff_0%,#edf4fe_100%)] p-5 ring-1 ring-[#dbe6f5]">
+                    <p className="text-sm font-black uppercase tracking-[0.16em] text-[#7a92b7]">Полный контроль доставки</p>
+                    <ul className="mt-4 space-y-3 text-base leading-7 text-[#173862]">
+                      {shipRussiaDeliveryControl.map((item) => (
+                        <li key={item}>• {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-[24px] bg-[linear-gradient(180deg,#f6faff_0%,#edf4fe_100%)] p-5 ring-1 ring-[#dbe6f5]">
+                    <p className="text-sm font-black uppercase tracking-[0.16em] text-[#7a92b7]">Защита ваших отправлений</p>
+                    <ul className="mt-4 space-y-3 text-base leading-7 text-[#173862]">
+                      {shipRussiaProtection.map((item) => (
+                        <li key={item}>• {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-[24px] border border-[rgba(245,194,71,0.34)] bg-[rgba(255,245,215,0.9)] p-5 shadow-[0_14px_28px_rgba(39,77,146,0.06)]">
+                    <p className="text-sm font-black uppercase tracking-[0.16em] text-[#b45309]">Удобная оплата</p>
+                    <ul className="mt-4 space-y-3 text-base leading-7 text-[#173862]">
+                      {shipRussiaPayment.map((item) => (
+                        <li key={item}>{item === "Без наложенного платежа" ? "❗️ Без наложенного платежа" : `• ${item}`}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div className="relative min-h-[320px] lg:min-h-full">
+                <div className="relative h-full min-h-[320px]">
+                  <Image
+                    src="/ship-russia-tracking-protection.png"
+                    alt="Доставка под защитой и отслеживанием"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 1024px) 100vw, 42vw"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[34px] border border-white/44 bg-white/95 px-6 py-7 text-[#12315b] shadow-[0_30px_70px_rgba(39,77,146,0.16)] backdrop-blur-xl sm:px-8">
+            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d88b2]">Как это работает</p>
+                <h2 className="mt-4 text-3xl font-extrabold leading-none text-[#123763] sm:text-4xl">Путь отправления шаг за шагом</h2>
+                <div className="mt-6 grid gap-3">
+                  {shipRussiaSteps.map((item, index) => (
+                    <div key={item} className="flex items-center gap-4 rounded-[24px] bg-[linear-gradient(180deg,#f6faff_0%,#edf4fe_100%)] px-4 py-4 ring-1 ring-[#dbe6f5]">
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-[#4677cf] shadow-[0_10px_22px_rgba(39,77,146,0.08)]">
+                        {index + 1}
+                      </span>
+                      <span className="text-base font-semibold text-[#173862]">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex min-h-[340px] items-center justify-center lg:min-h-full">
+                <div className="relative h-[360px] w-full max-w-[430px] sm:h-[390px] lg:h-[430px] lg:max-w-[470px]">
+                  <Image
+                    src="/ship-russia-step-by-step-photoroom.png"
+                    alt="Процесс доставки шаг за шагом"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 1024px) 100vw, 42vw"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[34px] border border-white/44 bg-white/95 px-6 py-7 text-[#12315b] shadow-[0_30px_70px_rgba(39,77,146,0.16)] backdrop-blur-xl sm:px-8">
+            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d88b2]">Контакты</p>
+                <h2 className="mt-4 text-3xl font-extrabold leading-none text-[#123763] sm:text-4xl">Остались вопросы?</h2>
+                <div className="mt-6 grid gap-3">
+                  <div className="rounded-[22px] bg-[linear-gradient(180deg,#f6faff_0%,#edf4fe_100%)] px-4 py-4 ring-1 ring-[#dbe6f5]">
+                    <p className="text-sm font-black uppercase tracking-[0.16em] text-[#7a92b7]">Написать прямо сейчас</p>
+                    <p className="mt-2 text-base leading-7 text-[#173862]">Свяжитесь с нами в Telegram и получите консультацию по отправке.</p>
+                  </div>
+                  <div className="rounded-[22px] bg-[linear-gradient(180deg,#f6faff_0%,#edf4fe_100%)] px-4 py-4 ring-1 ring-[#dbe6f5]">
+                    <p className="text-sm font-black uppercase tracking-[0.16em] text-[#7a92b7]">Позвонить</p>
+                    <p className="mt-2 text-xl font-bold text-[#173862]">+7 (949) 854-27-85</p>
+                  </div>
+                  <div className="rounded-[22px] border border-[rgba(245,194,71,0.34)] bg-[rgba(255,245,215,0.9)] px-4 py-4 shadow-[0_14px_28px_rgba(39,77,146,0.06)]">
+                    <p className="text-lg font-bold text-[#173862]">Отправьте посылку уже сегодня</p>
+                    <p className="mt-2 text-base leading-7 text-[#173862]">Быстро оформим, надежно упакуем и доставим по России.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="relative">
+                <div className="relative aspect-[1.16/1]">
+                  <Image
+                    src="/ship-russia-contact-333.png"
+                    alt="Контакты и доставка"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 1024px) 100vw, 42vw"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </section>
   );
 
@@ -2786,165 +3218,200 @@ export function SuperboxApp() {
     ],
   ];
 
+  const renderBusinessView = () => (
+    <section
+      className="relative overflow-hidden bg-[#4a8de7] bg-cover bg-[position:72%_center] bg-no-repeat"
+      style={{ backgroundImage: "url('/brand/hero-background.png')" }}
+    >
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(51,114,214,0.96)_0%,rgba(86,148,232,0.82)_34%,rgba(150,198,248,0.26)_64%,rgba(255,255,255,0)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.6),transparent_17%),linear-gradient(90deg,rgba(255,255,255,0)_46%,rgba(255,255,255,0.74)_100%)]" />
+      <div className="absolute -left-28 top-1/2 h-[580px] w-[580px] -translate-y-1/2 rounded-full border border-white/18" />
+      <div className="absolute -left-10 bottom-[-180px] h-[440px] w-[440px] rounded-full border border-white/18" />
+
+      <div className="relative mx-auto flex min-h-[calc(100vh-92px)] w-full max-w-[1320px] items-center justify-center px-4 py-16 lg:px-6 lg:py-20">
+        <div className="w-full max-w-[860px] rounded-[36px] border border-white/44 bg-[linear-gradient(180deg,rgba(237,244,255,0.96)_0%,rgba(227,238,252,0.9)_100%)] px-6 py-12 text-center text-[#12315b] shadow-[0_30px_80px_rgba(39,77,146,0.18)] backdrop-blur-[20px] sm:px-8 sm:py-14">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/72 px-4 py-2 text-sm font-semibold text-[#4677cf] shadow-[0_12px_24px_rgba(39,77,146,0.08)]">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#7fb0ff]" />
+            Бизнес
+          </div>
+
+          <h1 className="mt-6 text-4xl font-extrabold leading-[1.05] text-[#13345f] sm:text-5xl lg:text-[4rem]">
+            скоро добавим)
+          </h1>
+        </div>
+      </div>
+    </section>
+  );
+
   const renderTariffsView = () => (
-    <section className="mx-auto w-full max-w-[1100px] space-y-6">
-      <div className="flow-surface float-in rounded-[28px] p-6">
-        <div className="mb-4 border-b border-[color:var(--line)] pb-4 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)] sm:text-sm">
+    <section
+      className="relative overflow-hidden bg-[#4a8de7] bg-cover bg-[position:72%_center] bg-no-repeat"
+      style={{ backgroundImage: "url('/brand/hero-background.png')" }}
+    >
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(51,114,214,0.96)_0%,rgba(86,148,232,0.82)_34%,rgba(150,198,248,0.26)_64%,rgba(255,255,255,0)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.6),transparent_17%),linear-gradient(90deg,rgba(255,255,255,0)_46%,rgba(255,255,255,0.74)_100%)]" />
+      <div className="absolute -left-28 top-1/2 h-[580px] w-[580px] -translate-y-1/2 rounded-full border border-white/18" />
+      <div className="absolute -left-10 bottom-[-180px] h-[440px] w-[440px] rounded-full border border-white/18" />
+
+      <div className="relative mx-auto w-full max-w-[1320px] px-4 pb-20 pt-12 lg:px-6 lg:pb-24 lg:pt-16">
+        <div className="mx-auto max-w-[900px] text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/36 bg-white/12 px-4 py-2 text-sm font-semibold text-white/92 backdrop-blur-sm">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#9fd0ff]" />
+            Бизнес
+          </div>
+
+          <h1 className="mt-6 text-4xl font-extrabold leading-[1.05] text-white drop-shadow-[0_16px_34px_rgba(20,56,120,0.22)] sm:text-5xl lg:text-[4rem]">
             Тарифы
-          </p>
-          <p className="mt-2 text-sm font-semibold uppercase tracking-[0.28em] text-[color:var(--accent-strong)] sm:text-base">
-              Тарифы · % от стоимости товара
+          </h1>
+
+          <p className="mt-5 text-lg font-bold leading-8 text-white/88 sm:text-[1.65rem]">
+            WB Дорогостой · WB ОПТ · СДЭК · Авито · DPD
           </p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-[760px] w-full text-sm">
-            <tbody>
-              {percentageTariffRows.map((row, rowIndex) => (
-                <tr key={rowIndex} className={rowIndex % 2 === 0 ? "" : "bg-[color:var(--surface-soft)]"}>
-                  {row.map((cell) => (
-                    <Fragment key={cell.label}>
-                      <th className="border-b border-r border-[color:var(--line)] px-4 py-3 text-left text-[color:var(--foreground)] sm:px-5 sm:text-base">
-                        {cell.label}
-                      </th>
-                      <td className="border-b border-r border-[color:var(--line)] px-4 py-3 text-right font-semibold text-[color:var(--foreground)] last:border-r-0 sm:px-5">
-                        {cell.value}
-                      </td>
-                    </Fragment>
+
+        <div className="mt-10 space-y-6">
+          <div className="rounded-[34px] border border-white/44 bg-[linear-gradient(180deg,rgba(237,244,255,0.96)_0%,rgba(227,238,252,0.9)_100%)] p-5 text-[#12315b] shadow-[0_30px_80px_rgba(39,77,146,0.18)] backdrop-blur-[20px] sm:p-6 lg:p-8">
+            <div className="mb-6 border-b border-[#d9e5f8] pb-5 text-center">
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-[#4677cf]">Тарифы</p>
+              <p className="mt-3 text-sm font-black uppercase tracking-[0.28em] text-[#6c40ff] sm:text-base">Тарифы · % от стоимости товара</p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-[760px] w-full text-sm">
+                <tbody>
+                  {percentageTariffRows.map((row, rowIndex) => (
+                    <tr key={rowIndex} className={rowIndex % 2 === 0 ? "bg-white/82" : "bg-[#eef4fc]"}>
+                      {row.map((cell) => (
+                        <Fragment key={cell.label}>
+                          <th className="border-b border-r border-[#d9e4f5] px-4 py-4 text-left text-base font-extrabold text-[#173862] sm:px-5">
+                            {cell.label}
+                          </th>
+                          <td className="border-b border-r border-[#d9e4f5] px-4 py-4 text-right font-bold text-[#173862] last:border-r-0 sm:px-5">
+                            {cell.value}
+                          </td>
+                        </Fragment>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-              <tr className="bg-[color:var(--surface-soft)]">
-                <th className="border-r border-[color:var(--line)] px-4 py-3 text-left text-[color:var(--foreground)] sm:px-5 sm:text-base">
-                  Детский Мир
-                </th>
-                <td className="border-r border-[color:var(--line)] px-4 py-3 text-right font-semibold text-[color:var(--foreground)] sm:px-5">
-                  10%
-                </td>
-                <th colSpan={3} className="border-r border-[color:var(--line)] px-4 py-3 text-center text-[color:var(--foreground)] sm:px-5 sm:text-base">
-                  Прочие интернет-магазины
-                </th>
-                <td className="px-4 py-3 text-right font-semibold text-[color:var(--foreground)] sm:px-5">15%</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="float-in text-center">
-        <h2 className="mt-2 font-[family-name:var(--font-display)] text-4xl leading-none text-[color:var(--foreground)] sm:text-5xl">
-          Весовые тарифы
-        </h2>
-        <p className="mt-4 text-lg font-semibold leading-8 text-[color:var(--accent-strong)] sm:text-[1.85rem]">
-          WB Дорогостой · WB ОПТ · СДЭК · Авито · DPD
-        </p>
-      </div>
-
-      {/* Two-column grid */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        {/* Standard rates card */}
-        <div className="flow-surface float-in rounded-[28px] p-6">
-          <div className="mb-4 border-b border-[color:var(--line)] pb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)]">Стандартная доставка</p>
-            <p className="mt-1 text-xl font-semibold text-[color:var(--foreground)]">Склад → Склад</p>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                <th className="pb-2 text-left font-semibold">Вес посылки</th>
-                <th className="pb-2 text-right font-semibold">Цена</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stdRates.map((row, i) => (
-                <tr
-                  key={row.w}
-                  className={`border-t border-[color:var(--line)] ${i % 2 === 0 ? "" : "bg-[color:var(--surface-soft)]"}`}
-                >
-                  <td className="py-2 text-[color:var(--muted)]">{row.w}</td>
-                  <td className="py-2 text-right font-semibold text-[color:var(--foreground)]">{row.p}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex flex-col gap-5">
-          <div className="flow-surface float-in rounded-[28px] p-6" style={{ animationDelay: "60ms" }}>
-            <div className="mb-4 border-b border-[color:var(--line)] pb-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)]">Крупногабаритные товары</p>
-              <p className="mt-1 text-xl font-semibold text-[color:var(--foreground)]">80 кг и выше</p>
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                  <th className="pb-2 text-left font-semibold">Вес</th>
-                  <th className="pb-2 text-right font-semibold">Склад → Склад</th>
-                  <th className="pb-2 text-right font-semibold">До подъезда</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bulkRates.map((row, i) => (
-                  <tr
-                    key={row.w}
-                    className={`border-t border-[color:var(--line)] ${i % 2 === 0 ? "" : "bg-[color:var(--surface-soft)]"}`}
-                  >
-                    <td className="py-2 text-[color:var(--muted)]">{row.w}</td>
-                    <td className="py-2 text-right font-semibold text-[color:var(--foreground)]">{row.wh}</td>
-                    <td className="py-2 text-right font-semibold text-[color:var(--accent-strong)]">{row.door}</td>
+                  <tr className="bg-[#eef4fc]">
+                    <th className="border-r border-[#d9e4f5] px-4 py-4 text-left text-base font-extrabold text-[#173862] sm:px-5">Детский Мир</th>
+                    <td className="border-r border-[#d9e4f5] px-4 py-4 text-right font-bold text-[#173862] sm:px-5">10%</td>
+                    <th colSpan={3} className="border-r border-[#d9e4f5] px-4 py-4 text-center text-base font-extrabold text-[#173862] sm:px-5">
+                      Прочие интернет-магазины
+                    </th>
+                    <td className="px-4 py-4 text-right font-bold text-[#173862] sm:px-5">15%</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <div className="flow-surface float-in rounded-[28px] p-6" style={{ animationDelay: "120ms" }}>
-            <div className="mb-4 border-b border-[color:var(--line)] pb-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)]">Курьерская доставка</p>
-              <p className="mt-1 text-xl font-semibold text-[color:var(--foreground)]">Тариф по городу</p>
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                  <th className="pb-2 text-left font-semibold">Вес</th>
-                  <th className="pb-2 text-right font-semibold">Цена</th>
-                </tr>
-              </thead>
-              <tbody>
-                {courierRates.map((row, i) => (
-                  <tr
-                    key={row.w}
-                    className={`border-t border-[color:var(--line)] ${i % 2 === 0 ? "" : "bg-[color:var(--surface-soft)]"}`}
-                  >
-                    <td className="py-2 text-[color:var(--muted)]">{row.w}</td>
-                    <td className="py-2 text-right font-semibold text-[color:var(--foreground)]">{row.p}</td>
+          <div className="text-center">
+            <h2 className="text-3xl font-extrabold leading-none text-white drop-shadow-[0_12px_28px_rgba(20,56,120,0.18)] sm:text-[3rem]">
+              Весовые тарифы
+            </h2>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="rounded-[34px] border border-white/44 bg-white/95 p-6 text-[#12315b] shadow-[0_30px_70px_rgba(39,77,146,0.16)] backdrop-blur-xl">
+              <div className="mb-5 border-b border-[#d9e5f8] pb-4">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d88b2]">Стандартная доставка</p>
+                <p className="mt-2 text-[1.75rem] font-extrabold text-[#123763]">Склад → Склад</p>
+              </div>
+
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[10px] font-black uppercase tracking-[0.22em] text-[#7a92b7]">
+                    <th className="pb-3 text-left font-semibold">Вес посылки</th>
+                    <th className="pb-3 text-right font-semibold">Цена</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {stdRates.map((row, i) => (
+                    <tr key={row.w} className={`border-t border-[#dbe6f4] ${i % 2 === 0 ? "" : "bg-[#f6faff]"}`}>
+                      <td className="py-3 text-[#5b759d]">{row.w}</td>
+                      <td className="py-3 text-right font-bold text-[#173862]">{row.p}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-5">
+              <div className="rounded-[34px] border border-white/44 bg-white/95 p-6 text-[#12315b] shadow-[0_30px_70px_rgba(39,77,146,0.16)] backdrop-blur-xl">
+                <div className="mb-5 border-b border-[#d9e5f8] pb-4">
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d88b2]">Крупногабаритные товары</p>
+                  <p className="mt-2 text-[1.75rem] font-extrabold text-[#123763]">80 кг и выше</p>
+                </div>
+
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[10px] font-black uppercase tracking-[0.22em] text-[#7a92b7]">
+                      <th className="pb-3 text-left font-semibold">Вес</th>
+                      <th className="pb-3 text-right font-semibold">Склад → Склад</th>
+                      <th className="pb-3 text-right font-semibold">До подъезда</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bulkRates.map((row, i) => (
+                      <tr key={row.w} className={`border-t border-[#dbe6f4] ${i % 2 === 0 ? "" : "bg-[#f6faff]"}`}>
+                        <td className="py-3 text-[#5b759d]">{row.w}</td>
+                        <td className="py-3 text-right font-bold text-[#173862]">{row.wh}</td>
+                        <td className="py-3 text-right font-bold text-[#6c40ff]">{row.door}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="rounded-[34px] border border-white/44 bg-white/95 p-6 text-[#12315b] shadow-[0_30px_70px_rgba(39,77,146,0.16)] backdrop-blur-xl">
+                <div className="mb-5 border-b border-[#d9e5f8] pb-4">
+                  <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d88b2]">Курьерская доставка</p>
+                  <p className="mt-2 text-[1.75rem] font-extrabold text-[#123763]">Тариф по городу</p>
+                </div>
+
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[10px] font-black uppercase tracking-[0.22em] text-[#7a92b7]">
+                      <th className="pb-3 text-left font-semibold">Вес</th>
+                      <th className="pb-3 text-right font-semibold">Цена</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {courierRates.map((row, i) => (
+                      <tr key={row.w} className={`border-t border-[#dbe6f4] ${i % 2 === 0 ? "" : "bg-[#f6faff]"}`}>
+                        <td className="py-3 text-[#5b759d]">{row.w}</td>
+                        <td className="py-3 text-right font-bold text-[#173862]">{row.p}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-[rgba(245,194,71,0.42)] bg-[rgba(255,245,215,0.9)] px-5 py-4 shadow-[0_18px_34px_rgba(57,92,162,0.12)]">
+            <p className="text-sm font-semibold leading-6 text-[#173862]">
+              ⚠️ <strong>Важно:</strong> Стоимость доставки рассчитывается по физическому или объёмному весу — применяется больший из двух показателей.
+            </p>
+          </div>
+
+          <div className="flex justify-center pt-1">
+            <SecondaryButton
+              onClick={() => window.location.assign("/")}
+              className="min-h-14 rounded-[22px] border-white/60 bg-white/92 px-8 text-base font-bold text-[#173862] shadow-[0_18px_34px_rgba(39,77,146,0.12)]"
+            >
+              ← Назад
+            </SecondaryButton>
           </div>
         </div>
-      </div>
-
-      {/* Important note */}
-      <div
-        className="float-in rounded-[20px] border border-[color:rgba(245,158,11,0.28)] bg-[rgba(245,158,11,0.07)] px-5 py-4"
-        style={{ animationDelay: "180ms" }}
-      >
-        <p className="text-sm font-medium leading-6 text-[color:var(--foreground)]">
-          ⚠️ <strong>Важно:</strong> Стоимость доставки рассчитывается по физическому или объёмному весу — применяется больший из двух показателей.
-        </p>
-      </div>
-
-      {/* Back button */}
-      <div className="flex justify-center pt-2">
-        <SecondaryButton onClick={() => openFlow("overview")}>← Назад</SecondaryButton>
       </div>
     </section>
   );
 
   const renderMainContent = () => {
     if (activeFlow === "overview") return renderOverview();
+    if (activeFlow === "business") return renderBusinessView();
     if (activeFlow === "pickup_standard" || activeFlow === "pickup_paid") return renderPickupFlow();
     if (activeFlow === "home_delivery") return renderDeliveryFlow();
     if (activeFlow === "order_lookup") return renderLookupFlow();
@@ -2955,12 +3422,34 @@ export function SuperboxApp() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1440px] flex-col px-4 pb-12 pt-4 sm:px-6 lg:px-8">
+    <main
+      className={`mx-auto flex min-h-screen w-full flex-col ${
+        useSarmaChrome ? "max-w-none bg-[#edf2f8] pb-12 pt-0" : "max-w-[1440px] px-4 pb-12 pt-4 sm:px-6 lg:px-8"
+      }`}
+    >
+      {useSarmaChrome ? (
+        <SarmaExpressHeader
+          activeItem={
+            useSarmaLookupChrome
+              ? "tracking"
+              : useSarmaBusinessChrome
+                ? "business"
+                : useSarmaTariffsChrome
+                  ? "tariffs"
+                  : useSarmaShipRussiaChrome
+                    ? "russia"
+                    : "internet-delivery"
+          }
+        />
+      ) : (
       <header
         className={`soft-card sticky top-4 z-40 rounded-[28px] px-5 py-4 backdrop-blur transition-[transform,opacity,box-shadow] duration-300 ease-out ${
-          isHeaderHidden ? "pointer-events-none opacity-0 shadow-none" : "opacity-100"
+          !lockMainHeaderVisible && isHeaderHidden ? "pointer-events-none opacity-0 shadow-none" : "opacity-100"
         }`}
-        style={{ transform: isHeaderHidden ? "translateY(calc(-100% - 1rem)) scale(0.95)" : "translateY(0) scale(1)" }}
+        style={{
+          transform:
+            !lockMainHeaderVisible && isHeaderHidden ? "translateY(calc(-100% - 1rem)) scale(0.95)" : "translateY(0) scale(1)",
+        }}
       >
         <div className="flex items-center justify-between gap-4">
           <button type="button" onClick={() => openFlow("overview")} className="flex items-center gap-3 rounded-full">
@@ -3027,15 +3516,10 @@ export function SuperboxApp() {
           </div>
         </div>
       </header>
+      )}
 
-      <div className="mt-8 flex-1">{renderMainContent()}</div>
+      <div className={`${useSarmaChrome ? "mt-0 flex-1" : "mt-8 flex-1"}`}>{renderMainContent()}</div>
 
-      <footer className="mt-16 flex flex-col gap-4 border-t border-white/60 py-8 text-sm text-[color:var(--muted)] md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="font-semibold text-[color:#9aa8c2]">Супер Бокс</p>
-          <p className="mt-1">© 2026 Супер Бокс.</p>
-        </div>
-      </footer>
     </main>
   );
 }

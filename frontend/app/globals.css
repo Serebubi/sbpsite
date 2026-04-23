@@ -77,6 +77,42 @@ textarea:focus-visible {
   outline-offset: 3px;
 }
 
+.calculator-field-input,
+.calculator-field-input:focus,
+.calculator-field-input:focus-visible {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.calculator-field-shell:focus-within {
+  outline: none;
+}
+
+.sarma-pickup-form input,
+.sarma-pickup-form textarea {
+  border-color: rgba(255, 255, 255, 0.58) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f2f7ff 100%) !important;
+  box-shadow: 0 14px 28px rgba(39, 77, 146, 0.1) !important;
+  color: #173862 !important;
+}
+
+.sarma-pickup-form input::placeholder,
+.sarma-pickup-form textarea::placeholder {
+  color: #8ea4c6 !important;
+}
+
+.sarma-pickup-form input:focus,
+.sarma-pickup-form input:focus-visible,
+.sarma-pickup-form textarea:focus,
+.sarma-pickup-form textarea:focus-visible {
+  border-color: #8cb7ff !important;
+  outline: none !important;
+  box-shadow:
+    0 0 0 3px rgba(140, 183, 255, 0.18),
+    0 14px 28px rgba(39, 77, 146, 0.12) !important;
+}
+
 ::selection {
   background: rgba(196, 46, 160, 0.18);
 }

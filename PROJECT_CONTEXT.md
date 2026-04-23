@@ -2,217 +2,132 @@
 
 ## Общий контекст
 
-Проект сейчас состоит из двух частей:
+Проект состоит из:
 
-1. `Сарма Экспресс` — новая публичная оболочка сайта с landing-подходом.
-2. `SUPERBOX` — основное приложение, где живут прикладные сценарии пользователя.
+1. `Сарма Экспресс` - публичная витрина и основная визуальная оболочка.
+2. `SUPERBOX` - прикладное приложение для заказов, выдачи, отслеживания и тарифов.
 
-Их не нужно механически смешивать. На текущем этапе `Сарма Экспресс` выступает как:
+Сейчас пользователь последовательно переносит важные `SUPERBOX flow` в визуальный стиль `Сарма Экспресс`.
 
-- главная витрина,
-- набор дополнительных страниц в том же стиле,
-- меню-переходник в нужные `SUPERBOX flow`.
+## Frontend
 
-## Техническая структура
+Next.js App Router, React, TypeScript, Tailwind.
 
-### Frontend
+Основные маршруты:
 
-- `frontend/` — Next.js App Router, React, TypeScript, Tailwind.
+- `frontend/app/page.tsx` -> `/`
+- `frontend/app/sarma-express/page.tsx` -> `/sarma-express`
+- `frontend/app/calculator/page.tsx` -> `/calculator`
+- `frontend/app/pickup-points/page.tsx` -> `/pickup-points`
+- `frontend/app/superbox/page.tsx` -> `/superbox`
 
-Ключевые routes:
-
-- `frontend/app/page.tsx` — главная `Сарма Экспресс`
-- `frontend/app/sarma-express/page.tsx` — та же главная отдельным route
-- `frontend/app/calculator/page.tsx` — страница калькулятора
-- `frontend/app/pickup-points/page.tsx` — страница пунктов выдачи
-- `frontend/app/superbox/page.tsx` — приложение `SUPERBOX`
-
-Ключевые компоненты новой публичной части:
+Основные компоненты:
 
 - `frontend/components/sarma-express-page.tsx`
 - `frontend/components/sarma-express-header.tsx`
 - `frontend/components/delivery-calculator-page.tsx`
 - `frontend/components/pickup-points-page.tsx`
-
-Ключевой компонент `SUPERBOX`:
-
 - `frontend/components/superbox-app.tsx`
+- `frontend/app/globals.css`
 
-### Backend
+## SUPERBOX flow
 
-- `backend/` — Express + TypeScript.
-- Заказы и заявки: `backend/src/routes/orders.ts`, `backend/src/services/order-service.ts`
-- Bitrix: `backend/src/services/bitrix-service.ts`
+Поддерживаемые flow:
 
-### Shared
+- `pickup_paid`
+- `pickup_standard`
+- `order_lookup`
+- `home_delivery`
+- `ship_russia`
+- `cancel_order`
+- `support`
+- `tariffs`
+- `business`
 
-- `shared/` — типы, схемы и общие значения.
-- Ключевой файл: `shared/src/index.ts`
+Открывать конкретный экран:
 
-## Текущая карта маршрутов
+- `/superbox?flow=<flow_id>`
 
-### Публичные страницы `Сарма Экспресс`
+## Верхняя навигация
 
-- `/`
-- `/sarma-express`
-- `/calculator`
-- `/pickup-points`
+Файл: `frontend/components/sarma-express-header.tsx`.
 
-### Приложение `SUPERBOX`
+Текущие пункты:
 
-- `/superbox`
+- `Калькулятор`
+- `Отслеживание`
+- `Бизнесу`
+- `Тарифы`
+- `Доставка из интернет-магазинов`
+- `Отправления в РФ`
+- `Пункты выдачи`
 
-### Переходы в конкретные экраны `SUPERBOX`
+Важно: `Бизнесу` и `Тарифы` теперь разные пункты. `Бизнесу` ведет на заглушку, `Тарифы` - на таблицы тарифов.
 
-- `/superbox?flow=order_lookup`
+## Главная страница
+
+Файл: `frontend/components/sarma-express-page.tsx`.
+
+Блок `Наши услуги` содержит 4 карточки:
+
+- `ЭКСПРЕСС ДОСТАВКА`
+- `LTL - СБОРНЫЕ ГРУЗЫ`
+- `FTL - ПОЛНАЯ ЗАГРУЗКА`
+- `ДОСТАВКА ИЗ ИНТЕРНЕТ-МАГАЗИНОВ`
+
+Все 4 карточки сейчас являются ссылками на:
+
 - `/superbox?flow=pickup_paid`
-- `/superbox?flow=pickup_standard`
-- `/superbox?flow=ship_russia`
-- `/superbox?flow=tariffs`
 
-## Текущая логика верхней навигации
+## Стиль Sarma
 
-Верхнее меню публичной части — это не просто якоря, а уже рабочие точки входа:
+Основные признаки:
 
-- `Калькулятор` открывает отдельную страницу калькулятора
-- `Отслеживание` открывает `SUPERBOX order_lookup`
-- `Бизнесу` открывает `SUPERBOX tariffs`
-- `Доставка из интернет-магазинов` открывает `SUPERBOX pickup_paid`
-- `Отправления в РФ` открывает `SUPERBOX ship_russia`
-- `Пункты выдачи` открывает отдельную страницу с картой
+- общий `SarmaExpressHeader`;
+- синий hero-фон с `frontend/public/brand/hero-background.png`;
+- большие бело-голубые карточки;
+- насыщенные синие CTA;
+- темно-синий текст;
+- мягкие тени и большие скругления.
 
-Это важная архитектурная договоренность. Если пользователь просит «чтобы кнопка X вела туда-то», сначала стоит продолжать именно этот паттерн.
+Если пользователь просит "как на главной" или "под наш стиль", применять этот паттерн.
 
-## Состояние страниц `Сарма Экспресс`
+## Калькулятор
 
-### Главная страница
+Файл: `frontend/components/delivery-calculator-page.tsx`.
 
-Компонент:
+Это пока UI без расчетной логики. Нельзя придумывать формулы самостоятельно.
 
-- `frontend/components/sarma-express-page.tsx`
+## Пункты выдачи
 
-Содержит:
+Общие варианты ПВЗ:
 
-- синий hero с фоном грузовика,
-- крупный заголовок,
-- CTA-кнопки,
-- блок преимуществ,
-- блок услуг.
+- `shared/src/index.ts`
 
-### Страница калькулятора
-
-Компонент:
-
-- `frontend/components/delivery-calculator-page.tsx`
-
-Содержит:
-
-- отдельный маршрут,
-- визуальную форму калькулятора,
-- пока только интерфейс без настоящей тарифной логики.
-
-### Страница пунктов выдачи
-
-Компонент:
+Страница карты:
 
 - `frontend/components/pickup-points-page.tsx`
 
-Содержит:
+Текущий адрес Мариуполя:
 
-- адресный список,
-- поиск по адресам,
-- карту Яндекс Карт,
-- выбор точки из списка,
-- показ активной метки на карте.
+- `Мариуполь, улица 60 лет СССР`
 
-## Яндекс Карты
+## Backend/shared
 
-Текущее подключение:
+Backend:
 
-- через Yandex Maps JS API
-- ключ ожидается в `NEXT_PUBLIC_YANDEX_MAPS_API_KEY`
-- локально ключ лежит в `frontend/.env.local`
+- `backend/src/routes/orders.ts`
+- `backend/src/services/order-service.ts`
+- `backend/src/services/bitrix-service.ts`
 
-Практическая деталь:
+Shared:
 
-- карта локально уже отрисовывается,
-- точки отображаются,
-- координаты текущих точек захардкожены в компоненте,
-- при этом есть предупреждение Яндекса про `Invalid API key`
+- `shared/src/index.ts`
 
-Вывод для следующего агента:
+Не трогать backend без явной необходимости. Для UI-задач обычно достаточно frontend и иногда `shared/src/index.ts`.
 
-- если карта перестанет работать, первым делом смотреть env и валидность ключа,
-- не пытаться сразу переписывать карту на другой сервис.
+## Проверки
 
-## Бренд и ассеты
+Для визуальных задач использовался Playwright через локальный `node` и скриншоты.
 
-### Активно используемые бренд-ассеты
-
-- `frontend/public/brand/hero-background.png`
-- `frontend/public/brand/sarma-express-logo-header-final.png`
-- `frontend/public/brand/sarma-express-logo-cropped.png`
-
-### Карточки услуг
-
-- `frontend/public/services/express-delivery.png`
-- `frontend/public/services/ltl-cargo.png`
-- `frontend/public/services/ftl-full-load.png`
-- `frontend/public/services/internet-delivery.png`
-
-### Исходники пользователя, которые не трогать без просьбы
-
-- `Сарма экспресс лого .png`
-- `фон.png`
-- папка `кнопки/`
-
-## Важные архитектурные замечания
-
-### 1. Не путать роли двух частей
-
-Сейчас:
-
-- `Сарма Экспресс` = публичная оболочка и маркетинговые страницы
-- `SUPERBOX` = прикладные flows
-
-### 2. Если задача про публичный UI, backend обычно трогать не нужно
-
-В backend/shared есть активные незавершенные изменения. Они не относятся к большинству локальных задач по шапке, страницам и переходам.
-
-### 3. Если задача про новую кнопку или пункт меню
-
-Сначала проверить, можно ли переиспользовать уже существующий `SUPERBOX flow`.
-
-Это дешевле и ближе к текущей логике проекта, чем строить новый экран.
-
-## Стилистическая рамка
-
-### Для `Сарма Экспресс`
-
-- максимально близко к референсам пользователя,
-- без лишней самодеятельности,
-- белая округлая верхняя плашка,
-- яркий синий hero,
-- крупная типографика,
-- аккуратные белые/полупрозрачные панели.
-
-### Для `SUPERBOX`
-
-- сохранять существующий premium-gradient стиль,
-- не переписывать его целиком,
-- делать только точечные правки, если пользователь явно просит.
-
-## Практический порядок работы для следующего агента
-
-1. Прочитать `AGENT.md`, `CURRENT_STATUS.md`, `HANDOFF.md`.
-2. Проверить `git status --short`.
-3. Понять, задача про:
-   - публичную часть,
-   - `SUPERBOX`,
-   - или про связку между ними.
-4. Если задача про шапку, навигацию, размер плашки, активные ссылки:
-   - идти в `frontend/components/sarma-express-header.tsx`
-5. Если задача про публичную страницу:
-   - идти в соответствующий компонент страницы
-6. Если задача про открытие конкретного сценария в `SUPERBOX`:
-   - искать и переиспользовать существующий `flow`
+`npx eslint ...` из корня сейчас падает из-за отсутствия `eslint.config.js` для ESLint 9. Это не обязательно значит, что код сломан.

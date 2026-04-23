@@ -78,9 +78,9 @@ const pickupPoints: PickupPoint[] = [
   {
     id: "mariupol-60-let-sssr-8",
     city: "Мариуполь",
-    address: "улица 60 лет СССР, дом 8",
+    address: "улица 60 лет СССР",
     coordinates: [47.120196, 37.5122688],
-    geocodeQuery: "Мариуполь, улица 60 лет СССР, дом 8",
+    geocodeQuery: "Мариуполь, улица 60 лет СССР",
   },
   {
     id: "donetsk-chelyuskintsev-184",

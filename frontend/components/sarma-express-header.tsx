@@ -6,7 +6,8 @@ import Link from "next/link";
 const navigationItems = [
   { key: "calculator", label: "Калькулятор", href: "/calculator" },
   { key: "tracking", label: "Отслеживание", href: "/superbox?flow=order_lookup" },
-  { key: "business", label: "Бизнесу", href: "/superbox?flow=tariffs" },
+  { key: "business", label: "Бизнесу", href: "/superbox?flow=business" },
+  { key: "tariffs", label: "Тарифы", href: "/superbox?flow=tariffs" },
   { key: "internet-delivery", label: "Доставка из интернет-магазинов", href: "/superbox?flow=pickup_paid" },
   { key: "russia", label: "Отправления в РФ", href: "/superbox?flow=ship_russia" },
   { key: "pickup-points", label: "Пункты выдачи", href: "/pickup-points" },

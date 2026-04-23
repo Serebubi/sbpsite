@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { SarmaExpressHeader } from "@/components/sarma-express-header";
 
@@ -32,9 +32,12 @@ const initialState: CalculatorState = {
 };
 
 const fieldClassName =
-  "mt-1.5 w-full border-none bg-transparent p-0 text-base font-semibold text-white placeholder:text-white/66 focus:outline-none";
+  "calculator-field-input mt-1.5 w-full appearance-none border-none bg-transparent p-0 text-base font-bold text-[#173862] shadow-none outline-none ring-0 placeholder:text-[#8aa2c8] focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none";
 
 export function DeliveryCalculatorPage() {
+  const [cargoType, setCargoType] = useState(initialState.cargoType);
+  const [extraServices, setExtraServices] = useState(initialState.extraServices);
+
   return (
     <main className="min-h-screen bg-[#edf2f8] text-[#12243f]">
       <SarmaExpressHeader activeItem="calculator" />
@@ -69,7 +72,7 @@ export function DeliveryCalculatorPage() {
             </p>
 
             <form
-              className="mt-8 rounded-[32px] border border-white/36 bg-[linear-gradient(180deg,rgba(255,255,255,0.23)_0%,rgba(255,255,255,0.12)_100%)] p-5 shadow-[0_28px_80px_rgba(28,78,160,0.22)] backdrop-blur-[18px] sm:p-7"
+              className="mt-8 rounded-[32px] border border-white/46 bg-[linear-gradient(180deg,rgba(244,249,255,0.3)_0%,rgba(226,238,255,0.2)_100%)] p-5 shadow-[0_28px_80px_rgba(28,78,160,0.24)] backdrop-blur-[20px] sm:p-7"
               onSubmit={(event) => {
                 event.preventDefault();
               }}
@@ -108,28 +111,16 @@ export function DeliveryCalculatorPage() {
                 </div>
 
                 <FieldShell icon={<CargoIcon />} label="Тип груза">
-                  <select className={fieldClassName} defaultValue={initialState.cargoType}>
-                    {cargoTypeOptions.map((option) => (
-                      <option key={option} value={option} className="text-[#12315b]">
-                        {option}
-                      </option>
-                    ))}
-                  </select>
+                  <ModernSelect options={cargoTypeOptions} value={cargoType} onChange={setCargoType} />
                 </FieldShell>
 
                 <FieldShell icon={<ShieldIcon />} label="Дополнительные услуги">
-                  <select className={fieldClassName} defaultValue={initialState.extraServices}>
-                    {extraServiceOptions.map((option) => (
-                      <option key={option} value={option} className="text-[#12315b]">
-                        {option}
-                      </option>
-                    ))}
-                  </select>
+                  <ModernSelect options={extraServiceOptions} value={extraServices} onChange={setExtraServices} />
                 </FieldShell>
 
                 <button
                   type="submit"
-                  className="mt-4 inline-flex min-h-14 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#5e9df1_0%,#487dd6_100%)] px-8 text-lg font-extrabold text-white shadow-[0_20px_36px_rgba(45,90,175,0.26)] hover:-translate-y-0.5"
+                  className="mt-4 inline-flex min-h-14 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#4f8fe8_0%,#356fcb_100%)] px-8 text-lg font-extrabold text-white shadow-[0_22px_38px_rgba(30,74,156,0.32)] hover:-translate-y-0.5"
                 >
                   Рассчитать стоимость
                 </button>
@@ -139,6 +130,103 @@ export function DeliveryCalculatorPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function ModernSelect({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
+  return (
+    <div ref={rootRef} className="relative mt-1.5">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 rounded-[18px] bg-transparent text-left text-base font-bold text-[#173862] outline-none"
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <span className="truncate">{value}</span>
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d7e5fb] bg-[linear-gradient(180deg,#f8fbff_0%,#ebf3ff_100%)] text-[#3f74cb] shadow-[0_8px_18px_rgba(47,96,184,0.12)] transition ${isOpen ? "rotate-180 border-[#bfd5f7] bg-[linear-gradient(180deg,#eef5ff_0%,#dfeeff_100%)]" : ""}`}
+        >
+          <ChevronDownIcon />
+        </span>
+      </button>
+
+      <div
+        className={`absolute left-0 right-0 top-[calc(100%+12px)] z-30 origin-top rounded-[22px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(235,244,255,0.94)_100%)] p-2.5 shadow-[0_30px_55px_rgba(24,66,140,0.2)] backdrop-blur-xl transition duration-200 ${isOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0"}`}
+      >
+        <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
+          {options.map((option) => {
+            const selected = option === value;
+
+            return (
+              <button
+                key={option}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                className={`flex w-full items-center justify-between gap-3 rounded-[16px] px-4 py-3 text-left transition ${
+                  selected
+                    ? "bg-[linear-gradient(135deg,#4f8fe8_0%,#3e76cf_100%)] text-white shadow-[0_16px_28px_rgba(46,90,175,0.24)]"
+                    : "bg-white/55 text-[#173862] hover:bg-white/92 hover:shadow-[0_12px_22px_rgba(34,78,154,0.12)]"
+                }`}
+                onClick={() => {
+                  onChange(option);
+                  setIsOpen(false);
+                }}
+              >
+                <span className="truncate text-[15px] font-semibold">{option}</span>
+                <span
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition ${
+                    selected
+                      ? "border-white/35 bg-white/18 text-white"
+                      : "border-[#d7e4f7] bg-white/72 text-[#7e95ba]"
+                  }`}
+                >
+                  {selected ? <CheckIcon /> : <DotIcon />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -152,10 +240,10 @@ function FieldShell({
   children: ReactNode;
 }) {
   return (
-    <label className="flex items-center gap-3 rounded-[22px] border border-white/26 bg-white/28 px-4 py-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/18 text-white/90">{icon}</span>
+    <label className="calculator-field-shell flex items-center gap-3 rounded-[22px] border border-white/58 bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(240,246,255,0.9)_100%)] px-4 py-4 text-[#173862] shadow-[0_16px_30px_rgba(28,78,160,0.12),inset_0_1px_0_rgba(255,255,255,0.75)]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(180deg,#edf5ff_0%,#dce9ff_100%)] text-[#3c75d0] shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]">{icon}</span>
       <div className="min-w-0 flex-1">
-        <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-white/72">{label}</span>
+        <span className="block text-xs font-black uppercase tracking-[0.18em] text-[#17212f]">{label}</span>
         {children}
       </div>
     </label>
@@ -218,6 +306,30 @@ function ShieldIcon() {
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M12 3 5 6v5.7c0 4.7 2.8 7.9 7 9.3 4.2-1.4 7-4.6 7-9.3V6l-7-3Z" />
       <path d="m9.2 12.4 1.9 1.9 3.8-4.2" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m5 12.5 4.2 4.2L19 7.8" />
+    </svg>
+  );
+}
+
+function DotIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3 w-3 fill-current" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.2" />
     </svg>
   );
 }
