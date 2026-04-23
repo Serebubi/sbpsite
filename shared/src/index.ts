@@ -123,7 +123,7 @@ export const marketplaceExampleUrls: Record<MarketplaceId, string> = {
 };
 
 export const pickupPointOptions = [
-  { id: "grushevskogo_mariupol", label: "Мариуполь, улица 60 лет СССР, дом 8" },
+  { id: "grushevskogo_mariupol", label: "Мариуполь, улица 60 лет СССР" },
   { id: "chelyuskintsev_donetsk", label: "Донецк, улица Челюскинцев 184" },
   { id: "kubysheva_warehouse", label: "Донецк, улица Куйбышева 70/13" },
   { id: "mendeleeva_volnovakha", label: "Волноваха, ул. Менделеева 14" },

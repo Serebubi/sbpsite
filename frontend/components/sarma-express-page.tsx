@@ -15,21 +15,25 @@ const serviceCards = [
     title: "ЭКСПРЕСС ДОСТАВКА",
     imageSrc: "/services/express-delivery.png",
     imageAlt: "Экспресс доставка",
+    href: "/superbox?flow=pickup_paid",
   },
   {
     title: "LTL - СБОРНЫЕ ГРУЗЫ",
     imageSrc: "/services/ltl-cargo.png",
     imageAlt: "Сборные грузы",
+    href: "/superbox?flow=pickup_paid",
   },
   {
     title: "FTL - ПОЛНАЯ ЗАГРУЗКА",
     imageSrc: "/services/ftl-full-load.png",
     imageAlt: "Полная загрузка",
+    href: "/superbox?flow=pickup_paid",
   },
   {
     title: "ДОСТАВКА ИЗ ИНТЕРНЕТ-МАГАЗИНОВ",
     imageSrc: "/services/internet-delivery.png",
     imageAlt: "Доставка из интернет-магазинов",
+    href: "/superbox?flow=pickup_paid",
   },
 ];
 
@@ -101,9 +105,10 @@ export function SarmaExpressPage() {
         </div>
 
         <div className="mt-10 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {serviceCards.map(({ title, imageSrc, imageAlt }) => (
-            <article
+          {serviceCards.map(({ title, imageSrc, imageAlt, href }) => (
+            <Link
               key={title}
+              href={href}
               className="group flex min-h-[332px] flex-col rounded-[28px] bg-white px-6 pb-8 pt-7 shadow-[0_24px_50px_rgba(16,45,88,0.1)] ring-1 ring-[#dce6f4] transition-transform duration-200 hover:-translate-y-1"
             >
               <div className="relative flex h-[180px] items-center justify-center overflow-hidden rounded-[24px] bg-[radial-gradient(circle_at_50%_35%,rgba(108,169,255,0.22),transparent_45%),linear-gradient(180deg,#fafdff_0%,#eef4ff_100%)]">
@@ -113,7 +118,7 @@ export function SarmaExpressPage() {
                 </div>
               </div>
               <h3 className="mt-7 text-center text-[1.28rem] font-black leading-tight text-[#111f36]">{title}</h3>
-            </article>
+            </Link>
           ))}
         </div>
       </section>
